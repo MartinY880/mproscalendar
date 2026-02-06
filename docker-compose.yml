@@ -42,7 +42,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik
-      - traefik.http.routers.cal.rule=Host(`cal-dev.pros.mortgage`)
+      - traefik.http.routers.cal.rule=Host(`cal.pros.mortgage`)
       - traefik.http.routers.cal.entrypoints=websecure
       - traefik.http.routers.cal.tls.certresolver=letsencrypt
       - traefik.http.services.cal.loadbalancer.server.port=3000
