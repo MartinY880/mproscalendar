@@ -32,7 +32,7 @@ export default function Header() {
               <img 
                 src={logoUrl} 
                 alt="MortgagePros Logo" 
-                className="h-10 w-auto object-contain"
+                className="h-20 w-auto object-contain"
               />
             ) : (
               <div className="flex items-center space-x-2">

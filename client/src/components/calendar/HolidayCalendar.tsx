@@ -63,10 +63,8 @@ export default function HolidayCalendar() {
     return holidays
       .filter(h => activeCategories.includes(h.category))
       .map(holiday => {
-        // Company holidays always use green, others use their custom color or category default
-        const eventColor = holiday.category === 'company' 
-          ? CATEGORY_COLORS.company 
-          : (holiday.color || CATEGORY_COLORS[holiday.category] || '#06427F');
+        // Always use static category color, ignore custom colors
+        const eventColor = CATEGORY_COLORS[holiday.category] || '#06427F';
         
         return {
           id: holiday.id.toString(),

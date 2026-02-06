@@ -26,24 +26,24 @@ const defaultFormData: HolidayFormData = {
   recurring: false
 };
 
-// Category options
+// Category options with static colors
 const CATEGORIES = [
   { value: 'federal', label: 'Federal Holiday', color: '#06427F' },
   { value: 'fun', label: 'Fun/National Day', color: '#7B7E77' },
   { value: 'company', label: 'Company Holiday', color: '#059669' }
 ];
 
-// Color presets
-const COLOR_PRESETS = [
-  '#06427F', // Primary blue
-  '#7B7E77', // Grey
-  '#059669', // Emerald
-  '#DC2626', // Red
-  '#F59E0B', // Amber
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#06B6D4'  // Cyan
-];
+// Category colors lookup
+const CATEGORY_COLORS: Record<string, string> = {
+  federal: '#06427F',
+  fun: '#7B7E77',
+  company: '#059669'
+};
+
+// Helper to get static color by category
+const getCategoryColor = (category: string): string => {
+  return CATEGORY_COLORS[category] || '#06427F';
+};
 
 export default function AdminHolidays() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -263,7 +263,7 @@ export default function AdminHolidays() {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: holiday.color }}
+                          style={{ backgroundColor: getCategoryColor(holiday.category) }}
                         />
                         <div>
                           <p className="font-medium text-gray-900">{holiday.title}</p>
@@ -277,7 +277,7 @@ export default function AdminHolidays() {
                       {formatDate(holiday.date)}
                     </td>
                     <td className="px-6 py-4">
-                      <Badge color={holiday.color}>
+                      <Badge color={getCategoryColor(holiday.category)}>
                         {holiday.category}
                       </Badge>
                     </td>
@@ -356,31 +356,6 @@ export default function AdminHolidays() {
               <option key={cat.value} value={cat.value}>{cat.label}</option>
             ))}
           </Select>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Color
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, color }))}
-                  className={`w-8 h-8 rounded-lg transition-transform ${
-                    formData.color === color ? 'ring-2 ring-offset-2 ring-primary scale-110' : ''
-                  }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-              <Input
-                type="color"
-                value={formData.color}
-                onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                className="w-8 h-8 p-0 border-0 cursor-pointer"
-              />
-            </div>
-          </div>
 
           <div className="flex items-center gap-6">
             <Toggle

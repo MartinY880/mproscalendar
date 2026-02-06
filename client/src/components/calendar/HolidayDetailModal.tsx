@@ -20,8 +20,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   company: 'Company Holiday'
 };
 
+// Category colors - static colors based on category
+const CATEGORY_COLORS: Record<string, string> = {
+  federal: '#06427F',  // Primary blue
+  fun: '#7B7E77',      // Grey
+  company: '#059669'   // Emerald green
+};
+
 export default function HolidayDetailModal({ holiday, isOpen, onClose }: HolidayDetailModalProps) {
   if (!holiday) return null;
+
+  // Get static color based on category
+  const categoryColor = CATEGORY_COLORS[holiday.category] || '#06427F';
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -41,7 +51,7 @@ export default function HolidayDetailModal({ holiday, isOpen, onClose }: Holiday
         <div className="flex items-start gap-3">
           <div
             className="w-4 h-4 rounded-full mt-1 flex-shrink-0"
-            style={{ backgroundColor: holiday.color }}
+            style={{ backgroundColor: categoryColor }}
           />
           <h3 className="text-xl font-semibold text-gray-900">
             {holiday.title}
@@ -58,7 +68,7 @@ export default function HolidayDetailModal({ holiday, isOpen, onClose }: Holiday
 
         {/* Category & Source */}
         <div className="flex flex-wrap gap-2">
-          <Badge color={holiday.color}>
+          <Badge color={categoryColor}>
             {CATEGORY_LABELS[holiday.category] || holiday.category}
           </Badge>
           
