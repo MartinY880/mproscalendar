@@ -58,11 +58,14 @@ cron.schedule('0 2 * * *', async () => {
 // Initialize database and start server
 async function startServer() {
   try {
-    // Check if admin exists, create default if not
-    const adminExists = await prisma.admin.findFirst();
+    // Check if admin exists, create or update default admin
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const adminExists = await prisma.admin.findUnique({
+      where: { username: 'admin' }
+    });
+    
     if (!adminExists) {
       console.log('Creating default admin user...');
-      const hashedPassword = await bcrypt.hash('admin123', 10);
       await prisma.admin.create({
         data: {
           username: 'admin',
@@ -70,6 +73,13 @@ async function startServer() {
         }
       });
       console.log('Default admin created (admin/admin123)');
+    } else {
+      // Reset password to default on startup (for development)
+      await prisma.admin.update({
+        where: { username: 'admin' },
+        data: { password: hashedPassword }
+      });
+      console.log('Default admin password reset to admin123');
     }
     
     app.listen(PORT, () => {

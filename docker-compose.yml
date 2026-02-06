@@ -26,6 +26,12 @@ services:
       - server-uploads:/app/uploads
     networks:
       - calendar-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Frontend Web Client
   client:
@@ -44,7 +50,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     networks:
       - calendar-network
       - traefik
