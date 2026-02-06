@@ -39,12 +39,12 @@ export default function AdminSettings() {
     const fetchSettings = async () => {
       try {
         const data = await settingsApi.getAll();
-        setLogoUrl(data.logo || null);
-        setSmtpHost(data.smtpHost || 'smtp.sendgrid.net');
-        setSmtpPort(data.smtpPort || '587');
-        setSmtpUser(data.smtpUser || 'apikey');
-        setSmtpPass(data.smtpPass || '');
-        setSmtpFrom(data.smtpFrom || '');
+        setLogoUrl(data.logoUrl || null);
+        setSmtpHost(data.smtp_host || 'smtp.sendgrid.net');
+        setSmtpPort(data.smtp_port || '587');
+        setSmtpUser(data.smtp_user || 'apikey');
+        setSmtpPass(data.smtp_pass || '');
+        setSmtpFrom(data.smtp_from || '');
       } catch (error) {
         console.error('Failed to fetch settings:', error);
       } finally {
@@ -142,11 +142,11 @@ export default function AdminSettings() {
     setIsSavingSmtp(true);
     try {
       await settingsApi.saveSMTP({
-        smtpHost,
-        smtpPort,
-        smtpUser,
-        smtpPass,
-        smtpFrom
+        smtp_host: smtpHost,
+        smtp_port: smtpPort,
+        smtp_user: smtpUser,
+        smtp_pass: smtpPass,
+        smtp_from: smtpFrom
       });
       toast.success('SMTP settings saved');
     } catch (error) {
