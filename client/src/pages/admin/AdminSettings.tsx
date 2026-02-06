@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import Toggle from '../../components/ui/Toggle';
 import Skeleton from '../../components/ui/Skeleton';
 import { settingsApi, authApi, emailApi } from '../../services/api';
 
@@ -32,6 +33,14 @@ export default function AdminSettings() {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   
+  // API settings
+  const [nagerEnabled, setNagerEnabled] = useState(false);
+  const [nagerCountry, setNagerCountry] = useState('US');
+  const [calendarificEnabled, setCalendarificEnabled] = useState(false);
+  const [calendarificKey, setCalendarificKey] = useState('');
+  const [calendarificCountry, setCalendarificCountry] = useState('US');
+  const [isSavingApi, setIsSavingApi] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch settings
@@ -45,6 +54,12 @@ export default function AdminSettings() {
         setSmtpUser(data.smtp_user || 'apikey');
         setSmtpPass(data.smtp_pass || '');
         setSmtpFrom(data.smtp_from || '');
+        // API settings
+        setNagerEnabled(data.api_nager_enabled === 'true');
+        setNagerCountry(data.api_nager_country || 'US');
+        setCalendarificEnabled(data.api_calendarific_enabled === 'true');
+        setCalendarificKey(data.api_calendarific_key || '');
+        setCalendarificCountry(data.api_calendarific_country || 'US');
       } catch (error) {
         console.error('Failed to fetch settings:', error);
       } finally {
@@ -173,6 +188,26 @@ export default function AdminSettings() {
       toast.error('Failed to send test email. Check SMTP settings.');
     } finally {
       setIsTestingEmail(false);
+    }
+  };
+
+  // Handle API settings save
+  const handleSaveApiSettings = async () => {
+    setIsSavingApi(true);
+    try {
+      await settingsApi.saveSMTP({
+        api_nager_enabled: nagerEnabled ? 'true' : 'false',
+        api_nager_country: nagerCountry,
+        api_calendarific_enabled: calendarificEnabled ? 'true' : 'false',
+        api_calendarific_key: calendarificKey,
+        api_calendarific_country: calendarificCountry
+      });
+      toast.success('API settings saved');
+    } catch (error) {
+      console.error('API save failed:', error);
+      toast.error('Failed to save API settings');
+    } finally {
+      setIsSavingApi(false);
     }
   };
 
@@ -375,6 +410,92 @@ export default function AdminSettings() {
                 Send Test
               </Button>
             </div>
+          </div>
+        </Card>
+
+        {/* Holiday API Settings */}
+        <Card>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Holiday API Settings</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Configure external APIs to sync federal and fun holidays automatically.
+          </p>
+
+          <div className="space-y-6">
+            {/* Nager.Date API (Federal Holidays) */}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-medium text-gray-900">Nager.Date API</h3>
+                  <p className="text-sm text-gray-500">Free API for federal/public holidays</p>
+                </div>
+                <Toggle
+                  checked={nagerEnabled}
+                  onChange={setNagerEnabled}
+                  label=""
+                />
+              </div>
+              {nagerEnabled && (
+                <div className="mt-4">
+                  <Input
+                    label="Country Code"
+                    value={nagerCountry}
+                    onChange={(e) => setNagerCountry(e.target.value.toUpperCase())}
+                    placeholder="US"
+                    maxLength={2}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    ISO 3166-1 alpha-2 code (e.g., US, CA, GB, DE)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Calendarific API (Fun Holidays) */}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-medium text-gray-900">Calendarific API</h3>
+                  <p className="text-sm text-gray-500">Fun & national observance holidays (API key required)</p>
+                </div>
+                <Toggle
+                  checked={calendarificEnabled}
+                  onChange={setCalendarificEnabled}
+                  label=""
+                />
+              </div>
+              {calendarificEnabled && (
+                <div className="mt-4 space-y-4">
+                  <Input
+                    label="API Key"
+                    type="password"
+                    value={calendarificKey}
+                    onChange={(e) => setCalendarificKey(e.target.value)}
+                    placeholder="Your Calendarific API key"
+                  />
+                  <Input
+                    label="Country Code"
+                    value={calendarificCountry}
+                    onChange={(e) => setCalendarificCountry(e.target.value.toUpperCase())}
+                    placeholder="US"
+                    maxLength={2}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Get a free API key at{' '}
+                    <a href="https://calendarific.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      calendarific.com
+                    </a>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <Button onClick={handleSaveApiSettings} isLoading={isSavingApi}>
+              Save API Settings
+            </Button>
+
+            <p className="text-xs text-gray-500">
+              After saving, go to Dashboard and click "Sync Holidays" to fetch holidays from enabled APIs.
+            </p>
           </div>
         </Card>
 

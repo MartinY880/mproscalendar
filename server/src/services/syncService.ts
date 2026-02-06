@@ -1,6 +1,7 @@
 /**
  * Holiday Sync Service
- * Fetches holidays from Nager.Date API (federal) and Calendarific (fun holidays)
+ * Fetches holidays from configured APIs (Nager.Date for federal, Calendarific for fun)
+ * API credentials are configured through admin settings
  */
 
 import axios from 'axios';
@@ -36,14 +37,47 @@ interface CalendarificResponse {
 }
 
 /**
+ * Get API settings from database
+ */
+async function getApiSettings(): Promise<Record<string, string>> {
+  const settings = await prisma.settings.findMany({
+    where: {
+      key: {
+        in: [
+          'api_nager_enabled',
+          'api_nager_country',
+          'api_calendarific_enabled',
+          'api_calendarific_key',
+          'api_calendarific_country'
+        ]
+      }
+    }
+  });
+
+  const result: Record<string, string> = {};
+  settings.forEach(s => {
+    result[s.key] = s.value;
+  });
+  return result;
+}
+
+/**
  * Sync federal holidays from Nager.Date API
  */
-async function syncFederalHolidays(year: number): Promise<number> {
+async function syncFederalHolidays(year: number, settings: Record<string, string>): Promise<number> {
+  // Check if Nager API is enabled
+  if (settings.api_nager_enabled !== 'true') {
+    console.log('[SYNC] Nager.Date API is disabled, skipping federal holidays sync');
+    return 0;
+  }
+
+  const country = settings.api_nager_country || 'US';
+
   try {
-    console.log(`[SYNC] Fetching federal holidays for ${year} from Nager.Date...`);
+    console.log(`[SYNC] Fetching federal holidays for ${year} from Nager.Date (${country})...`);
     
     const response = await axios.get<NagerHoliday[]>(
-      `https://date.nager.at/api/v3/PublicHolidays/${year}/US`
+      `https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`
     );
 
     const holidays = response.data;
@@ -104,23 +138,30 @@ async function syncFederalHolidays(year: number): Promise<number> {
 /**
  * Sync fun/national holidays from Calendarific API
  */
-async function syncFunHolidays(year: number): Promise<number> {
-  const apiKey = process.env.CALENDARIFIC_API_KEY;
-
-  if (!apiKey) {
-    console.log('[SYNC] No Calendarific API key found, skipping fun holidays sync');
+async function syncFunHolidays(year: number, settings: Record<string, string>): Promise<number> {
+  // Check if Calendarific API is enabled
+  if (settings.api_calendarific_enabled !== 'true') {
+    console.log('[SYNC] Calendarific API is disabled, skipping fun holidays sync');
     return 0;
   }
 
+  const apiKey = settings.api_calendarific_key;
+  if (!apiKey) {
+    console.log('[SYNC] No Calendarific API key configured, skipping fun holidays sync');
+    return 0;
+  }
+
+  const country = settings.api_calendarific_country || 'US';
+
   try {
-    console.log(`[SYNC] Fetching fun holidays for ${year} from Calendarific...`);
+    console.log(`[SYNC] Fetching fun holidays for ${year} from Calendarific (${country})...`);
 
     const response = await axios.get<CalendarificResponse>(
       `https://calendarific.com/api/v2/holidays`,
       {
         params: {
           api_key: apiKey,
-          country: 'US',
+          country: country,
           year: year,
           type: 'observance,national'
         }
@@ -264,14 +305,17 @@ export async function syncHolidays(year?: number): Promise<{
   
   console.log(`[SYNC] Starting holiday sync for ${targetYear}...`);
 
-  const federal = await syncFederalHolidays(targetYear);
-  const fun = await syncFunHolidays(targetYear);
+  // Get API settings from database
+  const settings = await getApiSettings();
+
+  const federal = await syncFederalHolidays(targetYear, settings);
+  const fun = await syncFunHolidays(targetYear, settings);
   const recurring = await syncRecurringHolidays(targetYear);
 
   // Also sync next year for planning
   const nextYear = targetYear + 1;
-  const federalNext = await syncFederalHolidays(nextYear);
-  const funNext = await syncFunHolidays(nextYear);
+  const federalNext = await syncFederalHolidays(nextYear, settings);
+  const funNext = await syncFunHolidays(nextYear, settings);
   const recurringNext = await syncRecurringHolidays(nextYear);
 
   console.log(`[SYNC] Sync complete!`);
