@@ -28,7 +28,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm install --only=production
+RUN npm install --omit=dev
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma
@@ -36,10 +36,6 @@ RUN npx prisma generate
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-
-# Copy entrypoint script
-COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
 
 # Create directories
 RUN mkdir -p uploads data
@@ -51,9 +47,5 @@ ENV PORT=4000
 # Expose port
 EXPOSE 4000
 
-# Health check - increased start period for DB init
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
-
-# Start the application with entrypoint
-CMD ["./docker-entrypoint.sh"]
+# Start the application - prisma db push runs on first connection
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]
