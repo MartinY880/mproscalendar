@@ -13,7 +13,10 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 const router = Router();
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads');
+// In production, uploads are at /app/uploads, in dev at ../../uploads relative to dist
+const uploadsDir = process.env.NODE_ENV === 'production' 
+  ? '/app/uploads' 
+  : path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -130,8 +133,9 @@ router.delete('/logo', authMiddleware, async (_req: AuthRequest, res: Response):
     });
 
     if (logoSetting) {
-      // Delete file if exists
-      const filePath = path.join(__dirname, '../..', logoSetting.value);
+      // Delete file if exists - extract filename from URL like /uploads/logo.png
+      const filename = logoSetting.value.replace('/uploads/', '');
+      const filePath = path.join(uploadsDir, filename);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }

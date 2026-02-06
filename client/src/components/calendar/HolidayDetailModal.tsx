@@ -79,24 +79,7 @@ export default function HolidayDetailModal({ holiday, isOpen, onClose }: Holiday
           )}
         </div>
 
-        {/* Divider */}
-        <hr className="border-gray-100" />
 
-        {/* Metadata */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-gray-500">Source</span>
-            <p className="font-medium text-gray-700">
-              {SOURCE_LABELS[holiday.source] || holiday.source}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Category</span>
-            <p className="font-medium text-gray-700 capitalize">
-              {holiday.category}
-            </p>
-          </div>
-        </div>
       </div>
     </Modal>
   );

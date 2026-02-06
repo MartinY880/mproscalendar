@@ -31,7 +31,11 @@ app.use(cors({
 app.use(express.json());
 
 // Serve uploaded files (logos)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// In production, uploads are at /app/uploads, in dev at ../uploads relative to dist
+const uploadsPath = process.env.NODE_ENV === 'production' 
+  ? '/app/uploads' 
+  : path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsPath));
 
 // API Routes
 app.use('/api/holidays', holidayRoutes);

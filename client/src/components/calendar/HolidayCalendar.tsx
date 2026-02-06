@@ -62,12 +62,18 @@ export default function HolidayCalendar() {
 
     return holidays
       .filter(h => activeCategories.includes(h.category))
-      .map(holiday => ({
+      .map(holiday => {
+        // Company holidays always use green, others use their custom color or category default
+        const eventColor = holiday.category === 'company' 
+          ? CATEGORY_COLORS.company 
+          : (holiday.color || CATEGORY_COLORS[holiday.category] || '#06427F');
+        
+        return {
         id: holiday.id.toString(),
         title: holiday.title,
         start: holiday.date,
-        backgroundColor: holiday.color || CATEGORY_COLORS[holiday.category] || '#06427F',
-        borderColor: holiday.color || CATEGORY_COLORS[holiday.category] || '#06427F',
+        backgroundColor: eventColor,
+        borderColor: eventColor,
         textColor: '#ffffff',
         extendedProps: {
           category: holiday.category,
@@ -75,7 +81,7 @@ export default function HolidayCalendar() {
           recurring: holiday.recurring,
           holidayId: holiday.id
         }
-      }));
+      }});
   }, [holidays, filters]);
 
   // Handle event click
