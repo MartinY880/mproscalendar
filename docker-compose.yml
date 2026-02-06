@@ -33,6 +33,13 @@ services:
       context: ./client
       dockerfile: Dockerfile
     container_name: mortgagepros-calendar-client
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.cal.rule=Host(`cal-dev.pros.mortgage`)
+      - traefik.http.routers.cal.entrypoints=websecure
+      - traefik.http.routers.cal.tls.certresolver=letsencrypt
+      - traefik.http.services.cal.loadbalancer.server.port=3000
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -40,8 +47,11 @@ services:
       - server
     networks:
       - calendar-network
+      - traefik
 
 networks:
+  traefik:
+    external: true
   calendar-network:
     driver: bridge
 
