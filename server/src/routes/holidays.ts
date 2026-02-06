@@ -185,6 +185,44 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response): P
 });
 
 /**
+ * DELETE /api/holidays/bulk/all
+ * Delete all holidays (admin only)
+ */
+router.delete('/bulk/all', authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await prisma.holiday.deleteMany({});
+    res.json({ message: `Deleted ${result.count} holidays` });
+  } catch (error) {
+    console.error('Delete all holidays error:', error);
+    res.status(500).json({ error: 'Failed to delete holidays' });
+  }
+});
+
+/**
+ * DELETE /api/holidays/bulk/source/:source
+ * Delete all holidays by source (admin only)
+ */
+router.delete('/bulk/source/:source', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { source } = req.params;
+    
+    if (!['federal', 'fun', 'custom'].includes(source)) {
+      res.status(400).json({ error: 'Invalid source. Must be: federal, fun, or custom' });
+      return;
+    }
+
+    const result = await prisma.holiday.deleteMany({
+      where: { source }
+    });
+    
+    res.json({ message: `Deleted ${result.count} ${source} holidays` });
+  } catch (error) {
+    console.error('Delete holidays by source error:', error);
+    res.status(500).json({ error: 'Failed to delete holidays' });
+  }
+});
+
+/**
  * PATCH /api/holidays/:id/visibility
  * Toggle holiday visibility (admin only)
  */

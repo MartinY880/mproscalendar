@@ -94,6 +94,16 @@ export const holidaysApi = {
     await api.delete(`/holidays/${id}`);
   },
 
+  deleteAll: async (): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>('/holidays/bulk/all');
+    return response.data;
+  },
+
+  deleteBySource: async (source: 'federal' | 'fun' | 'custom'): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/holidays/bulk/source/${source}`);
+    return response.data;
+  },
+
   toggleVisibility: async (id: number, visible: boolean): Promise<Holiday> => {
     const response = await api.patch<Holiday>(`/holidays/${id}/visibility`, { visible });
     return response.data;

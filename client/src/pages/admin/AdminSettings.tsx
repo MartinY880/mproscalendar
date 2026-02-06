@@ -10,7 +10,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Toggle from '../../components/ui/Toggle';
 import Skeleton from '../../components/ui/Skeleton';
-import { settingsApi, authApi, emailApi } from '../../services/api';
+import { settingsApi, authApi, emailApi, holidaysApi } from '../../services/api';
 
 export default function AdminSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -40,6 +40,9 @@ export default function AdminSettings() {
   const [calendarificKey, setCalendarificKey] = useState('');
   const [calendarificCountry, setCalendarificCountry] = useState('US');
   const [isSavingApi, setIsSavingApi] = useState(false);
+  const [isDeletingFederal, setIsDeletingFederal] = useState(false);
+  const [isDeletingFun, setIsDeletingFun] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -208,6 +211,54 @@ export default function AdminSettings() {
       toast.error('Failed to save API settings');
     } finally {
       setIsSavingApi(false);
+    }
+  };
+
+  // Handle delete federal holidays
+  const handleDeleteFederal = async () => {
+    if (!confirm('Delete all federal holidays? This cannot be undone.')) return;
+    
+    setIsDeletingFederal(true);
+    try {
+      const result = await holidaysApi.deleteBySource('federal');
+      toast.success(result.message);
+    } catch (error) {
+      console.error('Delete federal failed:', error);
+      toast.error('Failed to delete federal holidays');
+    } finally {
+      setIsDeletingFederal(false);
+    }
+  };
+
+  // Handle delete fun holidays
+  const handleDeleteFun = async () => {
+    if (!confirm('Delete all fun/national holidays? This cannot be undone.')) return;
+    
+    setIsDeletingFun(true);
+    try {
+      const result = await holidaysApi.deleteBySource('fun');
+      toast.success(result.message);
+    } catch (error) {
+      console.error('Delete fun failed:', error);
+      toast.error('Failed to delete fun holidays');
+    } finally {
+      setIsDeletingFun(false);
+    }
+  };
+
+  // Handle delete all holidays
+  const handleDeleteAll = async () => {
+    if (!confirm('DELETE ALL HOLIDAYS? This will remove ALL holidays including custom ones. This cannot be undone!')) return;
+    
+    setIsDeletingAll(true);
+    try {
+      const result = await holidaysApi.deleteAll();
+      toast.success(result.message);
+    } catch (error) {
+      console.error('Delete all failed:', error);
+      toast.error('Failed to delete holidays');
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -496,6 +547,37 @@ export default function AdminSettings() {
             <p className="text-xs text-gray-500">
               After saving, go to Dashboard and click "Sync Holidays" to fetch holidays from enabled APIs.
             </p>
+
+            {/* Delete Holidays Section */}
+            <hr className="my-4" />
+            <h3 className="font-medium text-gray-900 mb-3">Delete Synced Holidays</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Remove holidays that were synced from external APIs.
+            </p>
+            
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                onClick={handleDeleteFederal} 
+                isLoading={isDeletingFederal}
+                variant="danger"
+              >
+                Delete Federal
+              </Button>
+              <Button 
+                onClick={handleDeleteFun} 
+                isLoading={isDeletingFun}
+                variant="danger"
+              >
+                Delete Fun/National
+              </Button>
+              <Button 
+                onClick={handleDeleteAll} 
+                isLoading={isDeletingAll}
+                variant="danger"
+              >
+                Delete ALL Holidays
+              </Button>
+            </div>
           </div>
         </Card>
 
