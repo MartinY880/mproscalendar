@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.db-journal
+
+# Uploads (keep .gitkeep)
+server/uploads/*
+!server/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Project Guideline (local only)
+Project\ Guideline.md

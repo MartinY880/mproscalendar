@@ -1,0 +1,51 @@
+// Prisma schema for MortgagePros Holiday Calendar
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Holiday model - stores all types of holidays
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  title     String
+  date      String   // Format: YYYY-MM-DD
+  category  String   // federal, fun, company
+  color     String   @default("#06427F")
+  source    String   // federal, fun, custom
+  visible   Boolean  @default(true)
+  recurring Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Admin user model for authentication
+model Admin {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String   // bcrypt hashed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// App settings model for logo and other configs
+model Settings {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Sync log to track API syncs
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  source    String   // nager, calendarific
+  status    String   // success, error
+  message   String?
+  syncedAt  DateTime @default(now())
+}

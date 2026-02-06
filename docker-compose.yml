@@ -1,0 +1,63 @@
+# MortgagePros Holiday Calendar
+# Docker Compose configuration for production deployment
+
+version: '3.8'
+
+services:
+  # Backend API Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mortgagepros-calendar-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=file:/app/data/calendar.db
+      - JWT_SECRET=${JWT_SECRET:-mortgagepros-jwt-secret-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
+      - CALENDARIFIC_API_KEY=${CALENDARIFIC_API_KEY}
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - server-data:/app/data
+      - server-uploads:/app/uploads
+    networks:
+      - calendar-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend Web Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mortgagepros-calendar-client
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - calendar-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  calendar-network:
+    driver: bridge
+
+volumes:
+  server-data:
+    name: mortgagepros-calendar-data
+  server-uploads:
+    name: mortgagepros-calendar-uploads
