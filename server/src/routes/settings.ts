@@ -81,8 +81,9 @@ router.get('/logo', async (_req: Request, res: Response): Promise<void> => {
     });
 
     if (logoSetting) {
-      // Return API endpoint URL instead of static file path
-      res.json({ logoUrl: '/api/settings/logo/image' });
+      // Return API endpoint URL with cache-busting timestamp
+      const timestamp = Date.now();
+      res.json({ logoUrl: `/api/settings/logo/image?t=${timestamp}` });
     } else {
       res.json({ logoUrl: null });
     }
@@ -134,18 +135,20 @@ router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequ
       return;
     }
 
-    const logoUrl = `/uploads/${req.file.filename}`;
+    // Store the actual file path internally
+    const storedPath = `/uploads/${req.file.filename}`;
 
     // Update or create logo setting
     await prisma.settings.upsert({
       where: { key: 'logoUrl' },
-      update: { value: logoUrl },
-      create: { key: 'logoUrl', value: logoUrl }
+      update: { value: storedPath },
+      create: { key: 'logoUrl', value: storedPath }
     });
 
+    // Return the API endpoint URL for the frontend to use (with cache-busting)
     res.json({ 
       message: 'Logo uploaded successfully',
-      logoUrl 
+      logoUrl: `/api/settings/logo/image?t=${Date.now()}`
     });
   } catch (error) {
     console.error('Upload logo error:', error);
