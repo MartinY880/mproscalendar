@@ -43,8 +43,8 @@ RUN npx prisma generate
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Create directories
-RUN mkdir -p uploads data
+# Create directories with proper permissions
+RUN mkdir -p uploads data && chmod 755 uploads data
 
 # Set environment
 ENV NODE_ENV=production
