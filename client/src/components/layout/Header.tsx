@@ -82,6 +82,16 @@ export default function Header() {
                     >
                       Settings
                     </Link>
+                    <Link
+                      to="/admin/export"
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                        ${location.pathname === '/admin/export' 
+                          ? 'bg-white/20 text-white' 
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                        }`}
+                    >
+                      Export
+                    </Link>
                   </>
                 )}
                 <button

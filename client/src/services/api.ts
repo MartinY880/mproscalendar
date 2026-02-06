@@ -152,6 +152,46 @@ export const settingsApi = {
   update: async (key: string, value: string): Promise<Settings> => {
     const response = await api.put<Settings>(`/settings/${key}`, { value });
     return response.data;
+  },
+
+  saveSMTP: async (settings: Record<string, string>): Promise<void> => {
+    // Save each SMTP setting
+    await Promise.all(
+      Object.entries(settings).map(([key, value]) =>
+        api.put(`/settings/${key}`, { value })
+      )
+    );
+  }
+};
+
+// ============ Email API ============
+
+import type { EmailTemplate } from '../types';
+
+export const emailApi = {
+  sendCalendar: async (data: {
+    recipients: string[];
+    month: number;
+    year: number;
+    template: Omit<EmailTemplate, 'id' | 'name'>;
+    holidays: Array<{ title: string; date: string; category: string; color: string }>;
+  }): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/email/send', data);
+    return response.data;
+  },
+
+  sendTest: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/email/test', { email });
+    return response.data;
+  },
+
+  getTemplates: async (): Promise<EmailTemplate[]> => {
+    const response = await api.get<EmailTemplate[]>('/email/templates');
+    return response.data;
+  },
+
+  saveTemplates: async (templates: EmailTemplate[]): Promise<void> => {
+    await api.post('/email/templates', { templates });
   }
 };
 

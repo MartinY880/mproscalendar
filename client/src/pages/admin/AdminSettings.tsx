@@ -9,7 +9,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Skeleton from '../../components/ui/Skeleton';
-import { settingsApi, authApi } from '../../services/api';
+import { settingsApi, authApi, emailApi } from '../../services/api';
 
 export default function AdminSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -22,14 +22,29 @@ export default function AdminSettings() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
+  // SMTP settings
+  const [smtpHost, setSmtpHost] = useState('smtp.sendgrid.net');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('apikey');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [smtpFrom, setSmtpFrom] = useState('');
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch settings
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const data = await settingsApi.getLogo();
-        setLogoUrl(data.logoUrl);
+        const data = await settingsApi.getAll();
+        setLogoUrl(data.logo || null);
+        setSmtpHost(data.smtpHost || 'smtp.sendgrid.net');
+        setSmtpPort(data.smtpPort || '587');
+        setSmtpUser(data.smtpUser || 'apikey');
+        setSmtpPass(data.smtpPass || '');
+        setSmtpFrom(data.smtpFrom || '');
       } catch (error) {
         console.error('Failed to fetch settings:', error);
       } finally {
@@ -114,6 +129,50 @@ export default function AdminSettings() {
       toast.error('Failed to change password');
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  // Handle SMTP save
+  const handleSaveSmtp = async () => {
+    if (!smtpHost || !smtpPort || !smtpFrom) {
+      toast.error('Please fill in all required SMTP fields');
+      return;
+    }
+
+    setIsSavingSmtp(true);
+    try {
+      await settingsApi.saveSMTP({
+        smtpHost,
+        smtpPort,
+        smtpUser,
+        smtpPass,
+        smtpFrom
+      });
+      toast.success('SMTP settings saved');
+    } catch (error) {
+      console.error('SMTP save failed:', error);
+      toast.error('Failed to save SMTP settings');
+    } finally {
+      setIsSavingSmtp(false);
+    }
+  };
+
+  // Handle test email
+  const handleTestEmail = async () => {
+    if (!testEmail || !testEmail.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsTestingEmail(true);
+    try {
+      await emailApi.sendTest(testEmail);
+      toast.success('Test email sent!');
+    } catch (error) {
+      console.error('Test email failed:', error);
+      toast.error('Failed to send test email. Check SMTP settings.');
+    } finally {
+      setIsTestingEmail(false);
     }
   };
 
@@ -244,6 +303,79 @@ export default function AdminSettings() {
               Update Password
             </Button>
           </form>
+        </Card>
+
+        {/* SMTP Settings */}
+        <Card>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Email (SMTP) Settings</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Configure SendGrid or other SMTP relay for sending calendar emails.
+          </p>
+
+          <div className="space-y-4 max-w-md">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="SMTP Host"
+                value={smtpHost}
+                onChange={(e) => setSmtpHost(e.target.value)}
+                placeholder="smtp.sendgrid.net"
+              />
+              <Input
+                label="Port"
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                placeholder="587"
+              />
+            </div>
+            
+            <Input
+              label="Username"
+              value={smtpUser}
+              onChange={(e) => setSmtpUser(e.target.value)}
+              placeholder="apikey (for SendGrid)"
+            />
+            
+            <Input
+              label="Password / API Key"
+              type="password"
+              value={smtpPass}
+              onChange={(e) => setSmtpPass(e.target.value)}
+              placeholder="Your SendGrid API key"
+            />
+            
+            <Input
+              label="From Email"
+              type="email"
+              value={smtpFrom}
+              onChange={(e) => setSmtpFrom(e.target.value)}
+              placeholder="noreply@yourdomain.com"
+            />
+
+            <Button onClick={handleSaveSmtp} isLoading={isSavingSmtp}>
+              Save SMTP Settings
+            </Button>
+
+            <hr className="my-4" />
+
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <Input
+                  label="Test Email"
+                  type="email"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="test@example.com"
+                />
+              </div>
+              <Button 
+                onClick={handleTestEmail} 
+                isLoading={isTestingEmail}
+                variant="secondary"
+              >
+                Send Test
+              </Button>
+            </div>
+          </div>
         </Card>
 
         {/* App Info */}

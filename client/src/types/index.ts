@@ -111,3 +111,23 @@ export interface CategoryFilter {
 export interface ApiError {
   error: string;
 }
+
+// Email template
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  headerText: string;
+  footerText: string;
+  includeCompanyLogo: boolean;
+}
+
+// SMTP settings
+export interface SMTPSettings {
+  smtp_host: string;
+  smtp_port: string;
+  smtp_user: string;
+  smtp_pass: string;
+  smtp_from: string;
+  smtp_from_name: string;
+}

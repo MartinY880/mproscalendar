@@ -15,6 +15,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminHolidays from './pages/admin/AdminHolidays';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminExport from './pages/admin/AdminExport';
 
 // Components
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -74,6 +75,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminSettings />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/admin/export"
+            element={
+              <ProtectedRoute>
+                <AdminExport />
               </ProtectedRoute>
             }
           />
