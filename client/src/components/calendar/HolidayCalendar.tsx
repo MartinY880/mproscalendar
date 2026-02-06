@@ -69,19 +69,20 @@ export default function HolidayCalendar() {
           : (holiday.color || CATEGORY_COLORS[holiday.category] || '#06427F');
         
         return {
-        id: holiday.id.toString(),
-        title: holiday.title,
-        start: holiday.date,
-        backgroundColor: eventColor,
-        borderColor: eventColor,
-        textColor: '#ffffff',
-        extendedProps: {
-          category: holiday.category,
-          source: holiday.source,
-          recurring: holiday.recurring,
-          holidayId: holiday.id
-        }
-      }});
+          id: holiday.id.toString(),
+          title: holiday.title,
+          start: holiday.date,
+          backgroundColor: eventColor,
+          borderColor: eventColor,
+          textColor: '#ffffff',
+          extendedProps: {
+            category: holiday.category,
+            source: holiday.source,
+            recurring: holiday.recurring,
+            holidayId: holiday.id
+          }
+        };
+      });
   }, [holidays, filters]);
 
   // Handle event click
