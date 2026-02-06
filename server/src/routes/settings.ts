@@ -81,13 +81,45 @@ router.get('/logo', async (_req: Request, res: Response): Promise<void> => {
     });
 
     if (logoSetting) {
-      res.json({ logoUrl: logoSetting.value });
+      // Return API endpoint URL instead of static file path
+      res.json({ logoUrl: '/api/settings/logo/image' });
     } else {
       res.json({ logoUrl: null });
     }
   } catch (error) {
     console.error('Get logo error:', error);
     res.status(500).json({ error: 'Failed to fetch logo' });
+  }
+});
+
+/**
+ * GET /api/settings/logo/image
+ * Serve the actual logo image file
+ */
+router.get('/logo/image', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const logoSetting = await prisma.settings.findUnique({
+      where: { key: 'logoUrl' }
+    });
+
+    if (!logoSetting) {
+      res.status(404).json({ error: 'No logo found' });
+      return;
+    }
+
+    // Extract filename from stored URL (e.g., /uploads/logo.png -> logo.png)
+    const filename = logoSetting.value.replace('/uploads/', '');
+    const filePath = path.join(uploadsDir, filename);
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'Logo file not found' });
+      return;
+    }
+
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Get logo image error:', error);
+    res.status(500).json({ error: 'Failed to fetch logo image' });
   }
 });
 
