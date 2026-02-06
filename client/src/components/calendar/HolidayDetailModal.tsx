@@ -20,13 +20,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   company: 'Company Holiday'
 };
 
-// Source labels
-const SOURCE_LABELS: Record<string, string> = {
-  federal: 'Nager.Date API',
-  fun: 'Calendarific API',
-  custom: 'Custom'
-};
-
 export default function HolidayDetailModal({ holiday, isOpen, onClose }: HolidayDetailModalProps) {
   if (!holiday) return null;
 
