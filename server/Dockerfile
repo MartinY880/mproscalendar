@@ -37,8 +37,12 @@ RUN npx prisma generate
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Create uploads directory
-RUN mkdir -p uploads
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Create directories
+RUN mkdir -p uploads data
 
 # Set environment
 ENV NODE_ENV=production
@@ -47,9 +51,9 @@ ENV PORT=4000
 # Expose port
 EXPOSE 4000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check - increased start period for DB init
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# Start the application with entrypoint
+CMD ["./docker-entrypoint.sh"]
