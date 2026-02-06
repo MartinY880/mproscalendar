@@ -56,11 +56,11 @@ export const authMiddleware = (
  */
 export const generateToken = (user: { id: number; username: string }): string => {
   const secret = process.env.JWT_SECRET || 'mortgagepros-secret-key';
-  const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+  const expiresInHours = parseInt(process.env.JWT_EXPIRES_IN || '24', 10);
   
   return jwt.sign(
     { id: user.id, username: user.username },
     secret,
-    { expiresIn }
+    { expiresIn: expiresInHours * 60 * 60 } // Convert hours to seconds
   );
 };

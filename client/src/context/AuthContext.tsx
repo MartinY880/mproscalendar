@@ -3,7 +3,7 @@
  * Manages authentication state across the app
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { Admin, AuthContextType } from '../types';
 import { authApi } from '../services/api';
 
