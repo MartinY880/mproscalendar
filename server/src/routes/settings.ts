@@ -81,9 +81,27 @@ router.get('/logo', async (_req: Request, res: Response): Promise<void> => {
     });
 
     if (logoSetting) {
-      // Return API endpoint URL with cache-busting timestamp
-      const timestamp = Date.now();
-      res.json({ logoUrl: `/api/settings/logo/image?t=${timestamp}` });
+      // Extract filename and serve as base64 data URL
+      const filename = logoSetting.value.replace('/uploads/', '');
+      const filePath = path.join(uploadsDir, filename);
+      
+      if (fs.existsSync(filePath)) {
+        const fileBuffer = fs.readFileSync(filePath);
+        const ext = path.extname(filename).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.svg': 'image/svg+xml',
+          '.webp': 'image/webp'
+        };
+        const mimeType = mimeTypes[ext] || 'image/png';
+        const base64 = fileBuffer.toString('base64');
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        res.json({ logoUrl: dataUrl });
+      } else {
+        res.json({ logoUrl: null });
+      }
     } else {
       res.json({ logoUrl: null });
     }
@@ -145,10 +163,24 @@ router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequ
       create: { key: 'logoUrl', value: storedPath }
     });
 
-    // Return the API endpoint URL for the frontend to use (with cache-busting)
+    // Read the file and return as base64 data URL
+    const filePath = path.join(uploadsDir, req.file.filename);
+    const fileBuffer = fs.readFileSync(filePath);
+    const ext = path.extname(req.file.filename).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp'
+    };
+    const mimeType = mimeTypes[ext] || 'image/png';
+    const base64 = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
     res.json({ 
       message: 'Logo uploaded successfully',
-      logoUrl: `/api/settings/logo/image?t=${Date.now()}`
+      logoUrl: dataUrl
     });
   } catch (error) {
     console.error('Upload logo error:', error);

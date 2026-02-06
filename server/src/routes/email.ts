@@ -5,10 +5,48 @@
 
 import { Router, Response } from 'express';
 import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+
+// Uploads directory
+const uploadsDir = process.env.NODE_ENV === 'production' 
+  ? '/app/uploads' 
+  : path.join(__dirname, '../../uploads');
+
+// Helper to get logo as base64 data URL
+async function getLogoDataUrl(): Promise<string | null> {
+  try {
+    const logoSetting = await prisma.settings.findUnique({
+      where: { key: 'logoUrl' }
+    });
+    
+    if (!logoSetting) return null;
+    
+    const filename = logoSetting.value.replace('/uploads/', '');
+    const filePath = path.join(uploadsDir, filename);
+    
+    if (!fs.existsSync(filePath)) return null;
+    
+    const fileBuffer = fs.readFileSync(filePath);
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp'
+    };
+    const mimeType = mimeTypes[ext] || 'image/png';
+    const base64 = fileBuffer.toString('base64');
+    return `data:${mimeType};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
 
 // Email template interface
 interface EmailTemplate {
@@ -73,10 +111,8 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
       }
     });
 
-    // Get logo URL
-    const logoSetting = await prisma.settings.findUnique({
-      where: { key: 'logoUrl' }
-    });
+    // Get logo as base64 data URL
+    const logoDataUrl = template.includeCompanyLogo ? await getLogoDataUrl() : null;
 
     // Build email HTML
     const monthNames = [
@@ -118,8 +154,8 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <!-- Header -->
     <div style="background-color: #06427F; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-      ${template.includeCompanyLogo && logoSetting ? 
-        `<img src="${process.env.CORS_ORIGIN}${logoSetting.value}" alt="Company Logo" style="max-height: 50px; margin-bottom: 12px;">` : 
+      ${logoDataUrl ? 
+        `<img src="${logoDataUrl}" alt="Company Logo" style="max-height: 50px; margin-bottom: 12px;">` : 
         '<h1 style="color: white; margin: 0; font-size: 24px;">MortgagePros</h1>'
       }
       <h2 style="color: white; margin: 12px 0 0 0; font-size: 18px; font-weight: normal;">
