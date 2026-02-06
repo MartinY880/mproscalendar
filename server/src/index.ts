@@ -8,12 +8,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import cron from 'node-cron';
+import bcrypt from 'bcryptjs';
 
 import { holidayRoutes } from './routes/holidays';
 import { authRoutes } from './routes/auth';
 import { syncRoutes } from './routes/sync';
 import { settingsRoutes } from './routes/settings';
 import { syncHolidays } from './services/syncService';
+import prisma from './lib/prisma';
 
 // Load environment variables
 dotenv.config();
@@ -53,10 +55,33 @@ cron.schedule('0 2 * * *', async () => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 MortgagePros Calendar API running on port ${PORT}`);
-  console.log(`📅 Holiday sync cron scheduled for 2 AM daily`);
-});
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Check if admin exists, create default if not
+    const adminExists = await prisma.admin.findFirst();
+    if (!adminExists) {
+      console.log('Creating default admin user...');
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await prisma.admin.create({
+        data: {
+          username: 'admin',
+          password: hashedPassword
+        }
+      });
+      console.log('Default admin created (admin/admin123)');
+    }
+    
+    app.listen(PORT, () => {
+      console.log(`MortgagePros Calendar API running on port ${PORT}`);
+      console.log(`Holiday sync cron scheduled for 2 AM daily`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 export default app;
