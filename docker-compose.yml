@@ -19,6 +19,8 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24}
       - CALENDARIFIC_API_KEY=${CALENDARIFIC_API_KEY:-}
       - CORS_ORIGIN=http://localhost:3000
+      - DOCKER_BUILDKIT=0
+      - COMPOSE_DOCKER_CLI_BUILD=0
     ports:
       - "4000:4000"
     volumes:
@@ -39,6 +41,9 @@ services:
       context: ./client
       dockerfile: Dockerfile
     container_name: mortgagepros-calendar-client
+    environment:
+      - DOCKER_BUILDKIT=0
+      - COMPOSE_DOCKER_CLI_BUILD=0
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik
