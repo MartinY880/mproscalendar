@@ -161,22 +161,24 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
         const cells: string[] = [];
         for (let i = 0; i < 7; i++) {
           if ((weeks.length === 0 && i < startingDayOfWeek) || currentDay > daysInMonth) {
-            cells.push('<td style="padding: 4px; border: 1px solid #e5e5e5; min-height: 90px; vertical-align: top; background-color: #f9fafb;"></td>');
+            cells.push('<td style="padding: 4px; border: 1px solid #e5e5e5; height: 90px; vertical-align: top; background-color: #f9fafb;"><div style="height: 82px;"></div></td>');
           } else {
             const dayHolidays = holidaysByDay[currentDay] || [];
             const holidayDots = dayHolidays.map(h => 
               `<div style="font-size: 9px; padding: 2px 3px; margin: 1px 0; background-color: ${h.color}; color: white; border-radius: 2px; word-wrap: break-word; line-height: 1.2;">${h.title}</div>`
             ).join('');
             cells.push(`
-              <td style="padding: 4px; border: 1px solid #e5e5e5; min-height: 90px; vertical-align: top; width: 14.28%;">
-                <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">${currentDay}</div>
-                ${holidayDots}
+              <td style="padding: 4px; border: 1px solid #e5e5e5; height: 90px; vertical-align: top; width: 14.28%;">
+                <div style="min-height: 82px;">
+                  <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">${currentDay}</div>
+                  ${holidayDots}
+                </div>
               </td>
             `);
             currentDay++;
           }
         }
-        weeks.push(`<tr>${cells.join('')}</tr>`);
+        weeks.push(`<tr style="height: 90px;">${cells.join('')}</tr>`);
       }
       
       return `
