@@ -13,9 +13,10 @@ interface HolidayApiConfig {
   name: string;
   enabled: boolean;
   type: 'nager' | 'calendarific' | 'abstract' | 'custom';
-  baseUrl: string;
+  endpoint: string;
   apiKey?: string;
   country: string;
+  color: string;
   category: 'federal' | 'fun' | 'company';
   dateField?: string;
   titleField?: string;
@@ -29,8 +30,9 @@ const DEFAULT_CONFIGS: HolidayApiConfig[] = [
     name: 'Nager.Date (Federal)',
     enabled: false,
     type: 'nager',
-    baseUrl: 'https://date.nager.at/api/v3/PublicHolidays',
+    endpoint: 'https://date.nager.at/api/v3',
     country: 'US',
+    color: '#3B82F6',
     category: 'federal'
   },
   {
@@ -38,9 +40,10 @@ const DEFAULT_CONFIGS: HolidayApiConfig[] = [
     name: 'Calendarific (Fun)',
     enabled: false,
     type: 'calendarific',
-    baseUrl: 'https://calendarific.com/api/v2/holidays',
+    endpoint: 'https://calendarific.com/api/v2',
     apiKey: '',
     country: 'US',
+    color: '#10B981',
     category: 'fun'
   }
 ];
@@ -77,7 +80,7 @@ async function syncNagerApi(config: HolidayApiConfig, year: number): Promise<num
   try {
     console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
     
-    const response = await axios.get(`${config.baseUrl}/${year}/${config.country}`);
+    const response = await axios.get(`${config.endpoint}/PublicHolidays/${year}/${config.country}`);
     const holidays = response.data;
     let count = 0;
 
@@ -96,7 +99,7 @@ async function syncNagerApi(config: HolidayApiConfig, year: number): Promise<num
             title: holiday.name,
             date: holiday.date,
             category: config.category,
-            color: CATEGORY_COLORS[config.category],
+            color: config.color || CATEGORY_COLORS[config.category],
             source: config.id,
             visible: true,
             recurring: false
@@ -143,7 +146,7 @@ async function syncCalendarificApi(config: HolidayApiConfig, year: number): Prom
   try {
     console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
 
-    const response = await axios.get(config.baseUrl, {
+    const response = await axios.get(`${config.endpoint}/holidays`, {
       params: {
         api_key: config.apiKey,
         country: config.country,
@@ -191,7 +194,7 @@ async function syncCalendarificApi(config: HolidayApiConfig, year: number): Prom
             title: holiday.name,
             date: dateStr,
             category: config.category,
-            color: CATEGORY_COLORS[config.category],
+            color: config.color || CATEGORY_COLORS[config.category],
             source: config.id,
             visible: true,
             recurring: false
@@ -238,7 +241,7 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
   try {
     console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
 
-    const response = await axios.get(config.baseUrl, {
+    const response = await axios.get(config.endpoint, {
       params: {
         api_key: config.apiKey,
         country: config.country,
@@ -267,7 +270,7 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
             title: holiday.name,
             date: dateStr,
             category: config.category,
-            color: CATEGORY_COLORS[config.category],
+            color: config.color || CATEGORY_COLORS[config.category],
             source: config.id,
             visible: true,
             recurring: false
@@ -310,7 +313,7 @@ async function syncCustomApi(config: HolidayApiConfig, year: number): Promise<nu
     console.log(`[SYNC] Fetching from custom API ${config.name} for ${year}...`);
 
     // Build URL - replace placeholders
-    let url = config.baseUrl
+    let url = config.endpoint
       .replace('{year}', year.toString())
       .replace('{country}', config.country);
 
@@ -359,7 +362,7 @@ async function syncCustomApi(config: HolidayApiConfig, year: number): Promise<nu
             title: title,
             date: dateStr,
             category: config.category,
-            color: CATEGORY_COLORS[config.category],
+            color: config.color || CATEGORY_COLORS[config.category],
             source: config.id,
             visible: true,
             recurring: false

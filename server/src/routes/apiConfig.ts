@@ -15,9 +15,10 @@ export interface HolidayApiConfig {
   name: string;
   enabled: boolean;
   type: 'nager' | 'calendarific' | 'abstract' | 'custom';
-  baseUrl: string;
+  endpoint: string;
   apiKey?: string;
   country: string;
+  color: string;
   category: 'federal' | 'fun' | 'company';
   // For custom APIs, define field mappings
   dateField?: string;
@@ -32,8 +33,9 @@ const DEFAULT_CONFIGS: HolidayApiConfig[] = [
     name: 'Nager.Date (Federal)',
     enabled: false,
     type: 'nager',
-    baseUrl: 'https://date.nager.at/api/v3/PublicHolidays',
+    endpoint: 'https://date.nager.at/api/v3',
     country: 'US',
+    color: '#3B82F6',
     category: 'federal'
   },
   {
@@ -41,9 +43,10 @@ const DEFAULT_CONFIGS: HolidayApiConfig[] = [
     name: 'Calendarific (Fun)',
     enabled: false,
     type: 'calendarific',
-    baseUrl: 'https://calendarific.com/api/v2/holidays',
+    endpoint: 'https://calendarific.com/api/v2',
     apiKey: '',
     country: 'US',
+    color: '#10B981',
     category: 'fun'
   }
 ];
@@ -73,43 +76,32 @@ router.get('/', authMiddleware, async (_req: AuthRequest, res: Response): Promis
 
 /**
  * POST /api/holiday-apis
- * Save all API configurations
+ * Add a new API configuration
  */
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const configs: HolidayApiConfig[] = req.body.configs;
-
-    if (!Array.isArray(configs)) {
-      res.status(400).json({ error: 'configs must be an array' });
-      return;
-    }
-
-    await prisma.settings.upsert({
-      where: { key: 'holiday_api_configs' },
-      update: { value: JSON.stringify(configs) },
-      create: { key: 'holiday_api_configs', value: JSON.stringify(configs) }
-    });
-
-    res.json({ message: 'API configurations saved', configs });
-  } catch (error) {
-    console.error('Save API configs error:', error);
-    res.status(500).json({ error: 'Failed to save API configurations' });
-  }
-});
-
-/**
- * POST /api/holiday-apis/add
- * Add a new API configuration
- */
-router.post('/add', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const newConfig: HolidayApiConfig = req.body;
+    const newConfig = req.body as Omit<HolidayApiConfig, 'id'> & { id?: string };
 
     // Validate required fields
-    if (!newConfig.id || !newConfig.name || !newConfig.type || !newConfig.baseUrl) {
-      res.status(400).json({ error: 'Missing required fields: id, name, type, baseUrl' });
+    if (!newConfig.name || !newConfig.type || !newConfig.endpoint) {
+      res.status(400).json({ error: 'Missing required fields: name, type, endpoint' });
       return;
     }
+
+    // Generate ID if not provided
+    const configId = newConfig.id || `${newConfig.type}-${Date.now()}`;
+
+    const fullConfig: HolidayApiConfig = {
+      id: configId,
+      name: newConfig.name,
+      type: newConfig.type,
+      endpoint: newConfig.endpoint,
+      apiKey: newConfig.apiKey || '',
+      country: newConfig.country || 'US',
+      color: newConfig.color || '#3B82F6',
+      category: newConfig.category || 'federal',
+      enabled: newConfig.enabled !== false
+    };
 
     // Get existing configs
     const configSetting = await prisma.settings.findUnique({
@@ -121,12 +113,12 @@ router.post('/add', authMiddleware, async (req: AuthRequest, res: Response): Pro
       : [...DEFAULT_CONFIGS];
 
     // Check for duplicate ID
-    if (configs.some(c => c.id === newConfig.id)) {
+    if (configs.some(c => c.id === configId)) {
       res.status(400).json({ error: 'API configuration with this ID already exists' });
       return;
     }
 
-    configs.push(newConfig);
+    configs.push(fullConfig);
 
     await prisma.settings.upsert({
       where: { key: 'holiday_api_configs' },
@@ -134,12 +126,14 @@ router.post('/add', authMiddleware, async (req: AuthRequest, res: Response): Pro
       create: { key: 'holiday_api_configs', value: JSON.stringify(configs) }
     });
 
-    res.json({ message: 'API configuration added', config: newConfig });
+    res.json(fullConfig);
   } catch (error) {
     console.error('Add API config error:', error);
     res.status(500).json({ error: 'Failed to add API configuration' });
   }
 });
+
+// Removed duplicate /add endpoint - now handled by POST /
 
 /**
  * PUT /api/holiday-apis/:id
@@ -173,7 +167,7 @@ router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response): Prom
       create: { key: 'holiday_api_configs', value: JSON.stringify(configs) }
     });
 
-    res.json({ message: 'API configuration updated', config: configs[index] });
+    res.json(configs[index]);
   } catch (error) {
     console.error('Update API config error:', error);
     res.status(500).json({ error: 'Failed to update API configuration' });
