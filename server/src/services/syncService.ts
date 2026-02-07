@@ -249,12 +249,41 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
       }
     });
 
+    console.log(`[SYNC] ${config.name} response status:`, response.status);
+    
     const holidays = response.data || [];
+    
+    if (!Array.isArray(holidays)) {
+      console.error(`[SYNC] ${config.name}: Expected array, got:`, typeof holidays);
+      throw new Error('Invalid response format from API');
+    }
+    
     let count = 0;
 
     for (const holiday of holidays) {
-      const dateStr = holiday.date || holiday.date_day;
-      if (!dateStr) continue;
+      // Abstract API uses date format like "1/1/2020" or provides date_year, date_month, date_day
+      let dateStr: string;
+      
+      if (holiday.date_year && holiday.date_month && holiday.date_day) {
+        // Build YYYY-MM-DD from components
+        const month = String(holiday.date_month).padStart(2, '0');
+        const day = String(holiday.date_day).padStart(2, '0');
+        dateStr = `${holiday.date_year}-${month}-${day}`;
+      } else if (holiday.date) {
+        // Parse M/D/YYYY format
+        const parts = holiday.date.split('/');
+        if (parts.length === 3) {
+          const month = parts[0].padStart(2, '0');
+          const day = parts[1].padStart(2, '0');
+          const yr = parts[2];
+          dateStr = `${yr}-${month}-${day}`;
+        } else {
+          // Maybe it's already YYYY-MM-DD
+          dateStr = holiday.date;
+        }
+      } else {
+        continue;
+      }
 
       const existing = await prisma.holiday.findFirst({
         where: {
@@ -290,8 +319,13 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
 
     console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
     return count;
-  } catch (error) {
+  } catch (error: unknown) {
+    const axiosError = error as { response?: { status?: number; data?: unknown } };
     console.error(`[SYNC] ${config.name} error:`, error);
+    if (axiosError.response) {
+      console.error(`[SYNC] Response status:`, axiosError.response.status);
+      console.error(`[SYNC] Response data:`, axiosError.response.data);
+    }
     
     await prisma.syncLog.create({
       data: {
@@ -488,23 +522,21 @@ export async function syncHolidays(year?: number): Promise<{
   const details: Record<string, number> = {};
   let total = 0;
 
-  // Sync from each enabled API for current and next year
+  // Sync from each enabled API for the target year only
   for (const config of enabledConfigs) {
-    const countCurrent = await syncFromApi(config, targetYear);
-    const countNext = await syncFromApi(config, targetYear + 1);
-    details[config.id] = countCurrent + countNext;
-    total += countCurrent + countNext;
+    const count = await syncFromApi(config, targetYear);
+    details[config.id] = count;
+    total += count;
   }
 
   // Sync recurring holidays
   const recurring = await syncRecurringHolidays(targetYear);
-  const recurringNext = await syncRecurringHolidays(targetYear + 1);
 
-  console.log(`[SYNC] Sync complete! Total: ${total}, Recurring: ${recurring + recurringNext}`);
+  console.log(`[SYNC] Sync complete! Total: ${total}, Recurring: ${recurring}`);
 
   return {
     total,
-    recurring: recurring + recurringNext,
+    recurring,
     details
   };
 }
