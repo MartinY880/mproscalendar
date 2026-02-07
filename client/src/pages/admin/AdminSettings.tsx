@@ -10,7 +10,9 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Toggle from '../../components/ui/Toggle';
 import Skeleton from '../../components/ui/Skeleton';
-import { settingsApi, authApi, emailApi, holidaysApi } from '../../services/api';
+import Select from '../../components/ui/Select';
+import { settingsApi, authApi, emailApi, holidaysApi, holidayApisApi } from '../../services/api';
+import type { HolidayApiConfig } from '../../types';
 
 export default function AdminSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -34,12 +36,21 @@ export default function AdminSettings() {
   const [testEmail, setTestEmail] = useState('');
   
   // API settings
-  const [nagerEnabled, setNagerEnabled] = useState(false);
-  const [nagerCountry, setNagerCountry] = useState('US');
-  const [calendarificEnabled, setCalendarificEnabled] = useState(false);
-  const [calendarificKey, setCalendarificKey] = useState('');
-  const [calendarificCountry, setCalendarificCountry] = useState('US');
+  const [apiConfigs, setApiConfigs] = useState<HolidayApiConfig[]>([]);
+  const [isLoadingApis, setIsLoadingApis] = useState(true);
   const [isSavingApi, setIsSavingApi] = useState(false);
+  const [editingApi, setEditingApi] = useState<HolidayApiConfig | null>(null);
+  const [showApiForm, setShowApiForm] = useState(false);
+  const [newApi, setNewApi] = useState<Omit<HolidayApiConfig, 'id'>>({
+    name: '',
+    type: 'nager',
+    endpoint: '',
+    apiKey: '',
+    country: 'US',
+    color: '#3B82F6',
+    category: 'federal',
+    enabled: true
+  });
   const [isDeletingFederal, setIsDeletingFederal] = useState(false);
   const [isDeletingFun, setIsDeletingFun] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -57,12 +68,6 @@ export default function AdminSettings() {
         setSmtpUser(data.smtp_user || 'apikey');
         setSmtpPass(data.smtp_pass || '');
         setSmtpFrom(data.smtp_from || '');
-        // API settings
-        setNagerEnabled(data.api_nager_enabled === 'true');
-        setNagerCountry(data.api_nager_country || 'US');
-        setCalendarificEnabled(data.api_calendarific_enabled === 'true');
-        setCalendarificKey(data.api_calendarific_key || '');
-        setCalendarificCountry(data.api_calendarific_country || 'US');
       } catch (error) {
         console.error('Failed to fetch settings:', error);
       } finally {
@@ -70,7 +75,19 @@ export default function AdminSettings() {
       }
     };
 
+    const fetchApiConfigs = async () => {
+      try {
+        const configs = await holidayApisApi.getAll();
+        setApiConfigs(configs);
+      } catch (error) {
+        console.error('Failed to fetch API configs:', error);
+      } finally {
+        setIsLoadingApis(false);
+      }
+    };
+
     fetchSettings();
+    fetchApiConfigs();
   }, []);
 
   // Handle file selection
@@ -194,23 +211,77 @@ export default function AdminSettings() {
     }
   };
 
-  // Handle API settings save
-  const handleSaveApiSettings = async () => {
+  // Handle adding new API
+  const handleAddApi = async () => {
+    if (!newApi.name || !newApi.endpoint) {
+      toast.error('Name and endpoint are required');
+      return;
+    }
+
     setIsSavingApi(true);
     try {
-      await settingsApi.saveSMTP({
-        api_nager_enabled: nagerEnabled ? 'true' : 'false',
-        api_nager_country: nagerCountry,
-        api_calendarific_enabled: calendarificEnabled ? 'true' : 'false',
-        api_calendarific_key: calendarificKey,
-        api_calendarific_country: calendarificCountry
+      const created = await holidayApisApi.create(newApi);
+      setApiConfigs([...apiConfigs, created]);
+      setShowApiForm(false);
+      setNewApi({
+        name: '',
+        type: 'nager',
+        endpoint: '',
+        apiKey: '',
+        country: 'US',
+        color: '#3B82F6',
+        category: 'federal',
+        enabled: true
       });
-      toast.success('API settings saved');
+      toast.success('API added successfully');
     } catch (error) {
-      console.error('API save failed:', error);
-      toast.error('Failed to save API settings');
+      console.error('Add API failed:', error);
+      toast.error('Failed to add API');
     } finally {
       setIsSavingApi(false);
+    }
+  };
+
+  // Handle updating API
+  const handleUpdateApi = async () => {
+    if (!editingApi) return;
+
+    setIsSavingApi(true);
+    try {
+      const updated = await holidayApisApi.update(editingApi.id, editingApi);
+      setApiConfigs(apiConfigs.map(api => api.id === updated.id ? updated : api));
+      setEditingApi(null);
+      toast.success('API updated successfully');
+    } catch (error) {
+      console.error('Update API failed:', error);
+      toast.error('Failed to update API');
+    } finally {
+      setIsSavingApi(false);
+    }
+  };
+
+  // Handle delete API
+  const handleDeleteApi = async (id: string) => {
+    if (!confirm('Delete this API configuration?')) return;
+
+    try {
+      await holidayApisApi.delete(id);
+      setApiConfigs(apiConfigs.filter(api => api.id !== id));
+      toast.success('API deleted');
+    } catch (error) {
+      console.error('Delete API failed:', error);
+      toast.error('Failed to delete API');
+    }
+  };
+
+  // Handle toggle API enabled
+  const handleToggleApi = async (api: HolidayApiConfig) => {
+    try {
+      const updated = await holidayApisApi.update(api.id, { enabled: !api.enabled });
+      setApiConfigs(apiConfigs.map(a => a.id === updated.id ? updated : a));
+    } catch (error) {
+      console.error('Toggle API failed:', error);
+      toast.error('Failed to toggle API');
     }
   };
 
@@ -466,118 +537,228 @@ export default function AdminSettings() {
 
         {/* Holiday API Settings */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Holiday API Settings</h2>
-          <p className="text-sm text-gray-600 mb-6">
-            Configure external APIs to sync federal and fun holidays automatically.
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Holiday API Settings</h2>
+              <p className="text-sm text-gray-600">
+                Configure external APIs to sync holidays automatically.
+              </p>
+            </div>
+            <Button onClick={() => setShowApiForm(true)} size="sm">
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add API
+            </Button>
+          </div>
+
+          {/* API Form (Add/Edit) */}
+          {(showApiForm || editingApi) && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="font-medium text-gray-900 mb-4">
+                {editingApi ? 'Edit API' : 'Add New API'}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="API Name"
+                  value={editingApi ? editingApi.name : newApi.name}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, name: e.target.value})
+                    : setNewApi({...newApi, name: e.target.value})
+                  }
+                  placeholder="e.g., Nager Federal Holidays"
+                />
+                <Select
+                  label="API Type"
+                  value={editingApi ? editingApi.type : newApi.type}
+                  onChange={(e) => {
+                    const type = e.target.value as HolidayApiConfig['type'];
+                    const defaultEndpoints: Record<string, string> = {
+                      nager: 'https://date.nager.at/api/v3',
+                      calendarific: 'https://calendarific.com/api/v2',
+                      abstract: 'https://holidays.abstractapi.com/v1',
+                      custom: ''
+                    };
+                    if (editingApi) {
+                      setEditingApi({...editingApi, type, endpoint: defaultEndpoints[type] || editingApi.endpoint});
+                    } else {
+                      setNewApi({...newApi, type, endpoint: defaultEndpoints[type] || ''});
+                    }
+                  }}
+                >
+                  <option value="nager">Nager.Date (Free)</option>
+                  <option value="calendarific">Calendarific (API Key)</option>
+                  <option value="abstract">AbstractAPI</option>
+                  <option value="custom">Custom API</option>
+                </Select>
+                <Input
+                  label="Endpoint URL"
+                  value={editingApi ? editingApi.endpoint : newApi.endpoint}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, endpoint: e.target.value})
+                    : setNewApi({...newApi, endpoint: e.target.value})
+                  }
+                  placeholder="https://api.example.com"
+                />
+                <Input
+                  label="API Key (if required)"
+                  type="password"
+                  value={editingApi ? (editingApi.apiKey || '') : (newApi.apiKey || '')}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, apiKey: e.target.value})
+                    : setNewApi({...newApi, apiKey: e.target.value})
+                  }
+                  placeholder="Your API key"
+                />
+                <Input
+                  label="Country Code"
+                  value={editingApi ? editingApi.country : newApi.country}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, country: e.target.value.toUpperCase()})
+                    : setNewApi({...newApi, country: e.target.value.toUpperCase()})
+                  }
+                  placeholder="US"
+                  maxLength={2}
+                />
+                <Select
+                  label="Category"
+                  value={editingApi ? editingApi.category : newApi.category}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, category: e.target.value as 'federal' | 'fun' | 'company'})
+                    : setNewApi({...newApi, category: e.target.value as 'federal' | 'fun' | 'company'})
+                  }
+                >
+                  <option value="federal">Federal / Public</option>
+                  <option value="fun">Fun / National</option>
+                  <option value="company">Company</option>
+                </Select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                  <input
+                    type="color"
+                    value={editingApi ? editingApi.color : newApi.color}
+                    onChange={(e) => editingApi 
+                      ? setEditingApi({...editingApi, color: e.target.value})
+                      : setNewApi({...newApi, color: e.target.value})
+                    }
+                    className="w-full h-10 rounded cursor-pointer"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Button 
+                  onClick={editingApi ? handleUpdateApi : handleAddApi} 
+                  isLoading={isSavingApi}
+                >
+                  {editingApi ? 'Update API' : 'Add API'}
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setShowApiForm(false);
+                    setEditingApi(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* API List */}
+          <div className="space-y-3">
+            {isLoadingApis ? (
+              <div className="space-y-3">
+                <Skeleton height={80} className="rounded-lg" />
+                <Skeleton height={80} className="rounded-lg" />
+              </div>
+            ) : apiConfigs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <p>No APIs configured yet.</p>
+                <p className="text-sm">Click "Add API" to get started.</p>
+              </div>
+            ) : (
+              apiConfigs.map(api => (
+                <div 
+                  key={api.id} 
+                  className={`p-4 rounded-lg border-2 ${api.enabled ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-4 h-4 rounded-full" 
+                        style={{ backgroundColor: api.color }}
+                      />
+                      <div>
+                        <h4 className="font-medium text-gray-900">{api.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          {api.type.charAt(0).toUpperCase() + api.type.slice(1)} • {api.country} • {api.category}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Toggle
+                        checked={api.enabled}
+                        onChange={() => handleToggleApi(api)}
+                        label=""
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setEditingApi(api)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleDeleteApi(api.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 mt-4">
+            After configuring APIs, go to Dashboard and click "Sync Holidays" to fetch holidays from enabled APIs.
           </p>
 
-          <div className="space-y-6">
-            {/* Nager.Date API (Federal Holidays) */}
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-medium text-gray-900">Nager.Date API</h3>
-                  <p className="text-sm text-gray-500">Free API for federal/public holidays</p>
-                </div>
-                <Toggle
-                  checked={nagerEnabled}
-                  onChange={setNagerEnabled}
-                  label=""
-                />
-              </div>
-              {nagerEnabled && (
-                <div className="mt-4">
-                  <Input
-                    label="Country Code"
-                    value={nagerCountry}
-                    onChange={(e) => setNagerCountry(e.target.value.toUpperCase())}
-                    placeholder="US"
-                    maxLength={2}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    ISO 3166-1 alpha-2 code (e.g., US, CA, GB, DE)
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Calendarific API (Fun Holidays) */}
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-medium text-gray-900">Calendarific API</h3>
-                  <p className="text-sm text-gray-500">Fun & national observance holidays (API key required)</p>
-                </div>
-                <Toggle
-                  checked={calendarificEnabled}
-                  onChange={setCalendarificEnabled}
-                  label=""
-                />
-              </div>
-              {calendarificEnabled && (
-                <div className="mt-4 space-y-4">
-                  <Input
-                    label="API Key"
-                    type="password"
-                    value={calendarificKey}
-                    onChange={(e) => setCalendarificKey(e.target.value)}
-                    placeholder="Your Calendarific API key"
-                  />
-                  <Input
-                    label="Country Code"
-                    value={calendarificCountry}
-                    onChange={(e) => setCalendarificCountry(e.target.value.toUpperCase())}
-                    placeholder="US"
-                    maxLength={2}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Get a free API key at{' '}
-                    <a href="https://calendarific.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                      calendarific.com
-                    </a>
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <Button onClick={handleSaveApiSettings} isLoading={isSavingApi}>
-              Save API Settings
+          {/* Delete Holidays Section */}
+          <hr className="my-4" />
+          <h3 className="font-medium text-gray-900 mb-3">Delete Synced Holidays</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Remove holidays that were synced from external APIs.
+          </p>
+          
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              onClick={handleDeleteFederal} 
+              isLoading={isDeletingFederal}
+              variant="danger"
+            >
+              Delete Federal
             </Button>
-
-            <p className="text-xs text-gray-500">
-              After saving, go to Dashboard and click "Sync Holidays" to fetch holidays from enabled APIs.
-            </p>
-
-            {/* Delete Holidays Section */}
-            <hr className="my-4" />
-            <h3 className="font-medium text-gray-900 mb-3">Delete Synced Holidays</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Remove holidays that were synced from external APIs.
-            </p>
-            
-            <div className="flex flex-wrap gap-3">
-              <Button 
-                onClick={handleDeleteFederal} 
-                isLoading={isDeletingFederal}
-                variant="danger"
-              >
-                Delete Federal
-              </Button>
-              <Button 
-                onClick={handleDeleteFun} 
-                isLoading={isDeletingFun}
-                variant="danger"
-              >
-                Delete Fun/National
-              </Button>
-              <Button 
-                onClick={handleDeleteAll} 
-                isLoading={isDeletingAll}
-                variant="danger"
-              >
-                Delete ALL Holidays
-              </Button>
-            </div>
+            <Button 
+              onClick={handleDeleteFun} 
+              isLoading={isDeletingFun}
+              variant="danger"
+            >
+              Delete Fun/National
+            </Button>
+            <Button 
+              onClick={handleDeleteAll} 
+              isLoading={isDeletingAll}
+              variant="danger"
+            >
+              Delete ALL Holidays
+            </Button>
           </div>
         </Card>
 

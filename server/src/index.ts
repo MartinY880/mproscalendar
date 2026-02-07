@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth';
 import { syncRoutes } from './routes/sync';
 import { settingsRoutes } from './routes/settings';
 import { emailRoutes } from './routes/email';
+import { apiConfigRoutes } from './routes/apiConfig';
 import { syncHolidays } from './services/syncService';
 import prisma from './lib/prisma';
 
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sync-holidays', syncRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/holiday-apis', apiConfigRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

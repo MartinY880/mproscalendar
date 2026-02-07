@@ -131,3 +131,16 @@ export interface SMTPSettings {
   smtp_from: string;
   smtp_from_name: string;
 }
+
+// Holiday API Configuration
+export interface HolidayApiConfig {
+  id: string;
+  name: string;
+  type: 'nager' | 'calendarific' | 'abstract' | 'custom';
+  endpoint: string;
+  apiKey?: string;
+  country: string;
+  color: string;
+  category: 'federal' | 'fun' | 'company';
+  enabled: boolean;
+}

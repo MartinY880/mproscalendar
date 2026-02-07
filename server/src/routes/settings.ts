@@ -72,36 +72,16 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /api/settings/logo
- * Get current logo URL
+ * Get current logo URL (stored as base64 data URL in database)
  */
 router.get('/logo', async (_req: Request, res: Response): Promise<void> => {
   try {
     const logoSetting = await prisma.settings.findUnique({
-      where: { key: 'logoUrl' }
+      where: { key: 'logoDataUrl' }
     });
 
-    if (logoSetting) {
-      // Extract filename and serve as base64 data URL
-      const filename = logoSetting.value.replace('/uploads/', '');
-      const filePath = path.join(uploadsDir, filename);
-      
-      if (fs.existsSync(filePath)) {
-        const fileBuffer = fs.readFileSync(filePath);
-        const ext = path.extname(filename).toLowerCase();
-        const mimeTypes: Record<string, string> = {
-          '.png': 'image/png',
-          '.jpg': 'image/jpeg',
-          '.jpeg': 'image/jpeg',
-          '.svg': 'image/svg+xml',
-          '.webp': 'image/webp'
-        };
-        const mimeType = mimeTypes[ext] || 'image/png';
-        const base64 = fileBuffer.toString('base64');
-        const dataUrl = `data:${mimeType};base64,${base64}`;
-        res.json({ logoUrl: dataUrl });
-      } else {
-        res.json({ logoUrl: null });
-      }
+    if (logoSetting && logoSetting.value) {
+      res.json({ logoUrl: logoSetting.value });
     } else {
       res.json({ logoUrl: null });
     }
@@ -144,7 +124,7 @@ router.get('/logo/image', async (_req: Request, res: Response): Promise<void> =>
 
 /**
  * POST /api/settings/logo
- * Upload new logo (admin only)
+ * Upload new logo (admin only) - stores as base64 in database
  */
 router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -153,17 +133,7 @@ router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequ
       return;
     }
 
-    // Store the actual file path internally
-    const storedPath = `/uploads/${req.file.filename}`;
-
-    // Update or create logo setting
-    await prisma.settings.upsert({
-      where: { key: 'logoUrl' },
-      update: { value: storedPath },
-      create: { key: 'logoUrl', value: storedPath }
-    });
-
-    // Read the file and return as base64 data URL
+    // Read the file and convert to base64 data URL
     const filePath = path.join(uploadsDir, req.file.filename);
     const fileBuffer = fs.readFileSync(filePath);
     const ext = path.extname(req.file.filename).toLowerCase();
@@ -177,6 +147,20 @@ router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequ
     const mimeType = mimeTypes[ext] || 'image/png';
     const base64 = fileBuffer.toString('base64');
     const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    // Store the base64 data URL directly in database
+    await prisma.settings.upsert({
+      where: { key: 'logoDataUrl' },
+      update: { value: dataUrl },
+      create: { key: 'logoDataUrl', value: dataUrl }
+    });
+
+    // Clean up the temporary file
+    try {
+      fs.unlinkSync(filePath);
+    } catch {
+      // Ignore cleanup errors
+    }
 
     res.json({ 
       message: 'Logo uploaded successfully',
@@ -194,24 +178,12 @@ router.post('/logo', authMiddleware, upload.single('logo'), async (req: AuthRequ
  */
 router.delete('/logo', authMiddleware, async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Get current logo
-    const logoSetting = await prisma.settings.findUnique({
-      where: { key: 'logoUrl' }
-    });
-
-    if (logoSetting) {
-      // Delete file if exists - extract filename from URL like /uploads/logo.png
-      const filename = logoSetting.value.replace('/uploads/', '');
-      const filePath = path.join(uploadsDir, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    // Delete the logo data URL from database
+    await prisma.settings.deleteMany({
+      where: { 
+        key: { in: ['logoDataUrl', 'logoUrl'] }
       }
-
-      // Remove setting
-      await prisma.settings.delete({
-        where: { key: 'logoUrl' }
-      });
-    }
+    });
 
     res.json({ message: 'Logo removed successfully' });
   } catch (error) {

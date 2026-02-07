@@ -205,4 +205,29 @@ export const emailApi = {
   }
 };
 
+// ============ Holiday APIs Configuration ============
+
+import type { HolidayApiConfig } from '../types';
+
+export const holidayApisApi = {
+  getAll: async (): Promise<HolidayApiConfig[]> => {
+    const response = await api.get<HolidayApiConfig[]>('/holiday-apis');
+    return response.data;
+  },
+
+  create: async (config: Omit<HolidayApiConfig, 'id'>): Promise<HolidayApiConfig> => {
+    const response = await api.post<HolidayApiConfig>('/holiday-apis', config);
+    return response.data;
+  },
+
+  update: async (id: string, config: Partial<HolidayApiConfig>): Promise<HolidayApiConfig> => {
+    const response = await api.put<HolidayApiConfig>(`/holiday-apis/${id}`, config);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/holiday-apis/${id}`);
+  }
+};
+
 export default api;

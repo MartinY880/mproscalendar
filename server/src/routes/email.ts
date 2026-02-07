@@ -5,44 +5,19 @@
 
 import { Router, Response } from 'express';
 import nodemailer from 'nodemailer';
-import fs from 'fs';
-import path from 'path';
 import prisma from '../lib/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// Uploads directory
-const uploadsDir = process.env.NODE_ENV === 'production' 
-  ? '/app/uploads' 
-  : path.join(__dirname, '../../uploads');
-
-// Helper to get logo as base64 data URL
+// Helper to get logo as base64 data URL (stored directly in DB)
 async function getLogoDataUrl(): Promise<string | null> {
   try {
     const logoSetting = await prisma.settings.findUnique({
-      where: { key: 'logoUrl' }
+      where: { key: 'logoDataUrl' }
     });
     
-    if (!logoSetting) return null;
-    
-    const filename = logoSetting.value.replace('/uploads/', '');
-    const filePath = path.join(uploadsDir, filename);
-    
-    if (!fs.existsSync(filePath)) return null;
-    
-    const fileBuffer = fs.readFileSync(filePath);
-    const ext = path.extname(filename).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.svg': 'image/svg+xml',
-      '.webp': 'image/webp'
-    };
-    const mimeType = mimeTypes[ext] || 'image/png';
-    const base64 = fileBuffer.toString('base64');
-    return `data:${mimeType};base64,${base64}`;
+    return logoSetting?.value || null;
   } catch {
     return null;
   }

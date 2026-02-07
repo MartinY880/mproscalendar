@@ -1,95 +1,92 @@
 /**
  * Holiday Sync Service
- * Fetches holidays from configured APIs (Nager.Date for federal, Calendarific for fun)
- * API credentials are configured through admin settings
+ * Fetches holidays from configured APIs
+ * Supports: Nager.Date, Calendarific, Abstract, and custom APIs
  */
 
 import axios from 'axios';
 import prisma from '../lib/prisma';
 
-// Nager.Date API response type
-interface NagerHoliday {
-  date: string;
-  localName: string;
+// API configuration interface (matches apiConfig.ts)
+interface HolidayApiConfig {
+  id: string;
   name: string;
-  countryCode: string;
-  fixed: boolean;
-  global: boolean;
-  launchYear: number | null;
-  types: string[];
+  enabled: boolean;
+  type: 'nager' | 'calendarific' | 'abstract' | 'custom';
+  baseUrl: string;
+  apiKey?: string;
+  country: string;
+  category: 'federal' | 'fun' | 'company';
+  dateField?: string;
+  titleField?: string;
+  responsePathToHolidays?: string;
 }
 
-// Calendarific API response type
-interface CalendarificHoliday {
-  name: string;
-  description: string;
-  date: {
-    iso: string;
-  };
-  type: string[];
-  primary_type: string;
-}
-
-interface CalendarificResponse {
-  response: {
-    holidays: CalendarificHoliday[];
-  };
-}
-
-/**
- * Get API settings from database
- */
-async function getApiSettings(): Promise<Record<string, string>> {
-  const settings = await prisma.settings.findMany({
-    where: {
-      key: {
-        in: [
-          'api_nager_enabled',
-          'api_nager_country',
-          'api_calendarific_enabled',
-          'api_calendarific_key',
-          'api_calendarific_country'
-        ]
-      }
-    }
-  });
-
-  const result: Record<string, string> = {};
-  settings.forEach(s => {
-    result[s.key] = s.value;
-  });
-  return result;
-}
-
-/**
- * Sync federal holidays from Nager.Date API
- */
-async function syncFederalHolidays(year: number, settings: Record<string, string>): Promise<number> {
-  // Check if Nager API is enabled
-  if (settings.api_nager_enabled !== 'true') {
-    console.log('[SYNC] Nager.Date API is disabled, skipping federal holidays sync');
-    return 0;
+// Default API configurations
+const DEFAULT_CONFIGS: HolidayApiConfig[] = [
+  {
+    id: 'nager-us',
+    name: 'Nager.Date (Federal)',
+    enabled: false,
+    type: 'nager',
+    baseUrl: 'https://date.nager.at/api/v3/PublicHolidays',
+    country: 'US',
+    category: 'federal'
+  },
+  {
+    id: 'calendarific-us',
+    name: 'Calendarific (Fun)',
+    enabled: false,
+    type: 'calendarific',
+    baseUrl: 'https://calendarific.com/api/v2/holidays',
+    apiKey: '',
+    country: 'US',
+    category: 'fun'
   }
+];
 
-  const country = settings.api_nager_country || 'US';
+// Category colors
+const CATEGORY_COLORS: Record<string, string> = {
+  federal: '#06427F',
+  fun: '#7B7E77',
+  company: '#059669'
+};
 
+/**
+ * Get API configurations from database
+ */
+async function getApiConfigs(): Promise<HolidayApiConfig[]> {
   try {
-    console.log(`[SYNC] Fetching federal holidays for ${year} from Nager.Date (${country})...`);
-    
-    const response = await axios.get<NagerHoliday[]>(
-      `https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`
-    );
+    const configSetting = await prisma.settings.findUnique({
+      where: { key: 'holiday_api_configs' }
+    });
 
+    if (configSetting) {
+      return JSON.parse(configSetting.value) as HolidayApiConfig[];
+    }
+  } catch (error) {
+    console.error('[SYNC] Error reading API configs:', error);
+  }
+  return DEFAULT_CONFIGS;
+}
+
+/**
+ * Sync holidays from a Nager.Date API
+ */
+async function syncNagerApi(config: HolidayApiConfig, year: number): Promise<number> {
+  try {
+    console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
+    
+    const response = await axios.get(`${config.baseUrl}/${year}/${config.country}`);
     const holidays = response.data;
     let count = 0;
 
     for (const holiday of holidays) {
-      // Check if holiday already exists
       const existing = await prisma.holiday.findFirst({
         where: {
           title: holiday.name,
           date: holiday.date,
-          source: 'federal'
+          source: config.id
         }
       });
 
@@ -98,9 +95,9 @@ async function syncFederalHolidays(year: number, settings: Record<string, string
           data: {
             title: holiday.name,
             date: holiday.date,
-            category: 'federal',
-            color: '#06427F', // Primary blue for federal
-            source: 'federal',
+            category: config.category,
+            color: CATEGORY_COLORS[config.category],
+            source: config.id,
             visible: true,
             recurring: false
           }
@@ -109,69 +106,56 @@ async function syncFederalHolidays(year: number, settings: Record<string, string
       }
     }
 
-    // Log sync
     await prisma.syncLog.create({
       data: {
-        source: 'nager',
+        source: config.id,
         status: 'success',
-        message: `Synced ${count} new federal holidays for ${year}`
+        message: `Synced ${count} holidays for ${year}`
       }
     });
 
-    console.log(`[SYNC] Added ${count} new federal holidays for ${year}`);
+    console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
     return count;
   } catch (error) {
-    console.error('[SYNC] Federal holidays sync error:', error);
+    console.error(`[SYNC] ${config.name} error:`, error);
     
     await prisma.syncLog.create({
       data: {
-        source: 'nager',
+        source: config.id,
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error'
       }
     });
 
-    throw error;
+    return 0;
   }
 }
 
 /**
- * Sync fun/national holidays from Calendarific API
+ * Sync holidays from Calendarific API
  */
-async function syncFunHolidays(year: number, settings: Record<string, string>): Promise<number> {
-  // Check if Calendarific API is enabled
-  if (settings.api_calendarific_enabled !== 'true') {
-    console.log('[SYNC] Calendarific API is disabled, skipping fun holidays sync');
+async function syncCalendarificApi(config: HolidayApiConfig, year: number): Promise<number> {
+  if (!config.apiKey) {
+    console.log(`[SYNC] ${config.name}: No API key configured, skipping`);
     return 0;
   }
-
-  const apiKey = settings.api_calendarific_key;
-  if (!apiKey) {
-    console.log('[SYNC] No Calendarific API key configured, skipping fun holidays sync');
-    return 0;
-  }
-
-  const country = settings.api_calendarific_country || 'US';
 
   try {
-    console.log(`[SYNC] Fetching fun holidays for ${year} from Calendarific (${country})...`);
+    console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
 
-    const response = await axios.get<CalendarificResponse>(
-      `https://calendarific.com/api/v2/holidays`,
-      {
-        params: {
-          api_key: apiKey,
-          country: country,
-          year: year,
-          type: 'observance,national'
-        }
+    const response = await axios.get(config.baseUrl, {
+      params: {
+        api_key: config.apiKey,
+        country: config.country,
+        year: year,
+        type: 'observance,national'
       }
-    );
+    });
 
-    const holidays = response.data.response.holidays;
+    const holidays = response.data?.response?.holidays || [];
     let count = 0;
 
-    // Fun holiday categories to include
+    // Fun holiday keywords filter
     const funKeywords = [
       'day', 'national', 'world', 'international',
       'pizza', 'donut', 'ice cream', 'chocolate', 'coffee',
@@ -179,24 +163,25 @@ async function syncFunHolidays(year: number, settings: Record<string, string>): 
     ];
 
     for (const holiday of holidays) {
-      // Skip federal/public holidays (handled by Nager)
-      if (holiday.type.includes('Federal') || holiday.type.includes('Public')) {
-        continue;
+      // Skip federal/public holidays if category is fun
+      if (config.category === 'fun') {
+        if (holiday.type?.includes('Federal') || holiday.type?.includes('Public')) {
+          continue;
+        }
+        const isFunHoliday = funKeywords.some(keyword =>
+          holiday.name.toLowerCase().includes(keyword.toLowerCase())
+        );
+        if (!isFunHoliday) continue;
       }
 
-      // Check if it's a "fun" type holiday
-      const isFunHoliday = funKeywords.some(keyword =>
-        holiday.name.toLowerCase().includes(keyword.toLowerCase())
-      );
+      const dateStr = holiday.date?.iso?.split('T')[0];
+      if (!dateStr) continue;
 
-      if (!isFunHoliday) continue;
-
-      // Check if holiday already exists
       const existing = await prisma.holiday.findFirst({
         where: {
           title: holiday.name,
-          date: holiday.date.iso.split('T')[0],
-          source: 'fun'
+          date: dateStr,
+          source: config.id
         }
       });
 
@@ -204,10 +189,10 @@ async function syncFunHolidays(year: number, settings: Record<string, string>): 
         await prisma.holiday.create({
           data: {
             title: holiday.name,
-            date: holiday.date.iso.split('T')[0],
-            category: 'fun',
-            color: '#7B7E77', // Grey for fun holidays
-            source: 'fun',
+            date: dateStr,
+            category: config.category,
+            color: CATEGORY_COLORS[config.category],
+            source: config.id,
             visible: true,
             recurring: false
           }
@@ -216,29 +201,215 @@ async function syncFunHolidays(year: number, settings: Record<string, string>): 
       }
     }
 
-    // Log sync
     await prisma.syncLog.create({
       data: {
-        source: 'calendarific',
+        source: config.id,
         status: 'success',
-        message: `Synced ${count} new fun holidays for ${year}`
+        message: `Synced ${count} holidays for ${year}`
       }
     });
 
-    console.log(`[SYNC] Added ${count} new fun holidays for ${year}`);
+    console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
     return count;
   } catch (error) {
-    console.error('[SYNC] Fun holidays sync error:', error);
+    console.error(`[SYNC] ${config.name} error:`, error);
     
     await prisma.syncLog.create({
       data: {
-        source: 'calendarific',
+        source: config.id,
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error'
       }
     });
 
-    throw error;
+    return 0;
+  }
+}
+
+/**
+ * Sync holidays from Abstract API
+ */
+async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<number> {
+  if (!config.apiKey) {
+    console.log(`[SYNC] ${config.name}: No API key configured, skipping`);
+    return 0;
+  }
+
+  try {
+    console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
+
+    const response = await axios.get(config.baseUrl, {
+      params: {
+        api_key: config.apiKey,
+        country: config.country,
+        year: year
+      }
+    });
+
+    const holidays = response.data || [];
+    let count = 0;
+
+    for (const holiday of holidays) {
+      const dateStr = holiday.date || holiday.date_day;
+      if (!dateStr) continue;
+
+      const existing = await prisma.holiday.findFirst({
+        where: {
+          title: holiday.name,
+          date: dateStr,
+          source: config.id
+        }
+      });
+
+      if (!existing) {
+        await prisma.holiday.create({
+          data: {
+            title: holiday.name,
+            date: dateStr,
+            category: config.category,
+            color: CATEGORY_COLORS[config.category],
+            source: config.id,
+            visible: true,
+            recurring: false
+          }
+        });
+        count++;
+      }
+    }
+
+    await prisma.syncLog.create({
+      data: {
+        source: config.id,
+        status: 'success',
+        message: `Synced ${count} holidays for ${year}`
+      }
+    });
+
+    console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
+    return count;
+  } catch (error) {
+    console.error(`[SYNC] ${config.name} error:`, error);
+    
+    await prisma.syncLog.create({
+      data: {
+        source: config.id,
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+    });
+
+    return 0;
+  }
+}
+
+/**
+ * Sync holidays from a custom API
+ */
+async function syncCustomApi(config: HolidayApiConfig, year: number): Promise<number> {
+  try {
+    console.log(`[SYNC] Fetching from custom API ${config.name} for ${year}...`);
+
+    // Build URL - replace placeholders
+    let url = config.baseUrl
+      .replace('{year}', year.toString())
+      .replace('{country}', config.country);
+
+    const params: Record<string, string> = {};
+    if (config.apiKey) {
+      params.api_key = config.apiKey;
+    }
+
+    const response = await axios.get(url, { params });
+    
+    // Navigate to holidays array using responsePathToHolidays
+    let holidays = response.data;
+    if (config.responsePathToHolidays) {
+      const paths = config.responsePathToHolidays.split('.');
+      for (const p of paths) {
+        holidays = holidays?.[p];
+      }
+    }
+
+    if (!Array.isArray(holidays)) {
+      console.log(`[SYNC] ${config.name}: Response is not an array of holidays`);
+      return 0;
+    }
+
+    let count = 0;
+    const dateField = config.dateField || 'date';
+    const titleField = config.titleField || 'name';
+
+    for (const holiday of holidays) {
+      const dateStr = holiday[dateField];
+      const title = holiday[titleField];
+      
+      if (!dateStr || !title) continue;
+
+      const existing = await prisma.holiday.findFirst({
+        where: {
+          title: title,
+          date: dateStr,
+          source: config.id
+        }
+      });
+
+      if (!existing) {
+        await prisma.holiday.create({
+          data: {
+            title: title,
+            date: dateStr,
+            category: config.category,
+            color: CATEGORY_COLORS[config.category],
+            source: config.id,
+            visible: true,
+            recurring: false
+          }
+        });
+        count++;
+      }
+    }
+
+    await prisma.syncLog.create({
+      data: {
+        source: config.id,
+        status: 'success',
+        message: `Synced ${count} holidays for ${year}`
+      }
+    });
+
+    console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
+    return count;
+  } catch (error) {
+    console.error(`[SYNC] ${config.name} error:`, error);
+    
+    await prisma.syncLog.create({
+      data: {
+        source: config.id,
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+    });
+
+    return 0;
+  }
+}
+
+/**
+ * Sync holidays from a single API config
+ */
+async function syncFromApi(config: HolidayApiConfig, year: number): Promise<number> {
+  switch (config.type) {
+    case 'nager':
+      return syncNagerApi(config, year);
+    case 'calendarific':
+      return syncCalendarificApi(config, year);
+    case 'abstract':
+      return syncAbstractApi(config, year);
+    case 'custom':
+      return syncCustomApi(config, year);
+    default:
+      console.log(`[SYNC] Unknown API type: ${config.type}`);
+      return 0;
   }
 }
 
@@ -249,7 +420,6 @@ async function syncRecurringHolidays(year: number): Promise<number> {
   try {
     console.log(`[SYNC] Syncing recurring holidays for ${year}...`);
 
-    // Get all recurring holidays
     const recurringHolidays = await prisma.holiday.findMany({
       where: { recurring: true }
     });
@@ -257,11 +427,9 @@ async function syncRecurringHolidays(year: number): Promise<number> {
     let count = 0;
 
     for (const holiday of recurringHolidays) {
-      // Extract month-day from original date
       const [, month, day] = holiday.date.split('-');
       const newDate = `${year}-${month}-${day}`;
 
-      // Check if this recurring holiday already exists for the new year
       const existing = await prisma.holiday.findFirst({
         where: {
           title: holiday.title,
@@ -294,36 +462,47 @@ async function syncRecurringHolidays(year: number): Promise<number> {
 }
 
 /**
- * Main sync function - syncs all holiday sources
+ * Main sync function - syncs all enabled holiday APIs
  */
 export async function syncHolidays(year?: number): Promise<{
-  federal: number;
-  fun: number;
+  total: number;
   recurring: number;
+  details: Record<string, number>;
 }> {
   const targetYear = year || new Date().getFullYear();
   
   console.log(`[SYNC] Starting holiday sync for ${targetYear}...`);
 
-  // Get API settings from database
-  const settings = await getApiSettings();
+  // Get API configurations from database
+  const configs = await getApiConfigs();
+  const enabledConfigs = configs.filter(c => c.enabled);
 
-  const federal = await syncFederalHolidays(targetYear, settings);
-  const fun = await syncFunHolidays(targetYear, settings);
+  if (enabledConfigs.length === 0) {
+    console.log('[SYNC] No APIs enabled, skipping sync');
+    return { total: 0, recurring: 0, details: {} };
+  }
+
+  const details: Record<string, number> = {};
+  let total = 0;
+
+  // Sync from each enabled API for current and next year
+  for (const config of enabledConfigs) {
+    const countCurrent = await syncFromApi(config, targetYear);
+    const countNext = await syncFromApi(config, targetYear + 1);
+    details[config.id] = countCurrent + countNext;
+    total += countCurrent + countNext;
+  }
+
+  // Sync recurring holidays
   const recurring = await syncRecurringHolidays(targetYear);
+  const recurringNext = await syncRecurringHolidays(targetYear + 1);
 
-  // Also sync next year for planning
-  const nextYear = targetYear + 1;
-  const federalNext = await syncFederalHolidays(nextYear, settings);
-  const funNext = await syncFunHolidays(nextYear, settings);
-  const recurringNext = await syncRecurringHolidays(nextYear);
-
-  console.log(`[SYNC] Sync complete!`);
+  console.log(`[SYNC] Sync complete! Total: ${total}, Recurring: ${recurring + recurringNext}`);
 
   return {
-    federal: federal + federalNext,
-    fun: fun + funNext,
-    recurring: recurring + recurringNext
+    total,
+    recurring: recurring + recurringNext,
+    details
   };
 }
 
