@@ -315,28 +315,28 @@ export default function AdminExport() {
                     return (
                       <div
                         key={index}
-                        className={`min-h-[80px] p-1.5 border-b border-r border-gray-100 ${
+                        className={`min-h-[100px] p-2 border-b border-r border-gray-200 ${
                           day ? 'bg-white' : 'bg-gray-50'
-                        } ${isToday ? 'bg-primary/5' : ''}`}
+                        } ${isToday ? 'bg-blue-50' : ''}`}
                       >
                         {day && (
                           <>
-                            <span className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-gray-600'}`}>
+                            <span className={`text-base font-semibold ${isToday ? 'text-primary' : 'text-gray-700'}`}>
                               {day}
                             </span>
                             <div className="mt-1 space-y-1">
                               {dayHolidays.slice(0, 3).map(h => (
                                 <div
                                   key={h.id}
-                                  className="text-[10px] leading-tight px-1 py-0.5 rounded truncate text-white"
+                                  className="text-xs leading-tight px-1.5 py-1 rounded text-white font-medium"
                                   style={{ backgroundColor: h.color || CATEGORY_COLORS[h.category] }}
                                   title={h.title}
                                 >
-                                  {h.title}
+                                  {h.title.length > 15 ? h.title.slice(0, 15) + '...' : h.title}
                                 </div>
                               ))}
                               {dayHolidays.length > 3 && (
-                                <div className="text-[10px] text-gray-500">
+                                <div className="text-xs text-gray-500 font-medium">
                                   +{dayHolidays.length - 3} more
                                 </div>
                               )}

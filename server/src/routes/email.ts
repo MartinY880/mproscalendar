@@ -147,11 +147,11 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f4;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
     <!-- Header -->
     <div style="background-color: #06427F; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-      ${logoDataUrl && logoDataUrl.startsWith('data:image') ? 
-        `<img src="${logoDataUrl}" alt="Company Logo" style="max-height: 50px; margin-bottom: 12px;">` : 
+      ${logoDataUrl && logoDataUrl.length > 100 && logoDataUrl.startsWith('data:image') ? 
+        `<img src="${logoDataUrl}" alt="Company Logo" style="max-height: 60px; margin-bottom: 12px;">` : 
         '<h1 style="color: white; margin: 0; font-size: 24px;">MortgagePros</h1>'
       }
       <h2 style="color: white; margin: 12px 0 0 0; font-size: 18px; font-weight: normal;">
@@ -165,9 +165,9 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
         <table style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #f9fafb;">
-              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Holiday</th>
-              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Date</th>
-              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Type</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; width: 50%;">Holiday</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; width: 30%;">Date</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; width: 20%;">Type</th>
             </tr>
           </thead>
           <tbody>
