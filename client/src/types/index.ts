@@ -120,6 +120,7 @@ export interface EmailTemplate {
   headerText: string;
   footerText: string;
   includeCompanyLogo: boolean;
+  layout: 'list' | 'calendar';
 }
 
 // SMTP settings

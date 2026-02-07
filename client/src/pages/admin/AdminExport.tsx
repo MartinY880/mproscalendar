@@ -52,7 +52,8 @@ export default function AdminExport() {
     subject: '',
     headerText: '',
     footerText: 'Please mark your calendars accordingly.',
-    includeCompanyLogo: true
+    includeCompanyLogo: true,
+    layout: 'list'
   });
   
   // Logo URL
@@ -415,6 +416,42 @@ export default function AdminExport() {
               onChange={(checked) => setEmailTemplate(prev => ({ ...prev, includeCompanyLogo: checked }))}
               label="Include company logo in email"
             />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Layout
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEmailTemplate(prev => ({ ...prev, layout: 'list' }))}
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+                    emailTemplate.layout === 'list'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <svg className="w-5 h-5 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span className="text-sm">List</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailTemplate(prev => ({ ...prev, layout: 'calendar' }))}
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+                    emailTemplate.layout === 'calendar'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <svg className="w-5 h-5 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-sm">Calendar</span>
+                </button>
+              </div>
+            </div>
 
             {/* Holiday Summary */}
             <div className="p-3 bg-gray-50 rounded-lg">

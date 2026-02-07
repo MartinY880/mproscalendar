@@ -46,6 +46,7 @@ interface EmailTemplate {
   headerText: string;
   footerText: string;
   includeCompanyLogo: boolean;
+  layout: 'list' | 'calendar';
 }
 
 /**
@@ -103,8 +104,28 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
       }
     });
 
-    // Get logo as base64 data URL
+    // Get logo as base64 data URL and prepare for CID attachment
     const logoDataUrl = template.includeCompanyLogo ? await getLogoDataUrl() : null;
+    let logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null = null;
+    
+    if (logoDataUrl && logoDataUrl.length > 100 && logoDataUrl.startsWith('data:image')) {
+      try {
+        // Parse data URL: data:image/png;base64,XXXXXX
+        const matches = logoDataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (matches) {
+          const imageType = matches[1]; // png, jpeg, etc.
+          const base64Data = matches[2];
+          logoAttachment = {
+            filename: `logo.${imageType}`,
+            content: Buffer.from(base64Data, 'base64'),
+            cid: 'companylogo', // Content-ID for referencing in HTML
+            contentType: `image/${imageType}`
+          };
+        }
+      } catch (e) {
+        console.error('Failed to parse logo data URL:', e);
+      }
+    }
     
     // Get category labels
     const categoryLabels = await getCategoryLabels();
@@ -116,52 +137,113 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
     ];
     const monthName = monthNames[month];
 
-    const holidayRows = holidays.map(h => {
-      const date = new Date(h.date + 'T00:00:00');
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const dayNum = date.getDate();
-      const categoryLabel = categoryLabels[h.category as keyof typeof categoryLabels] || h.category;
-      return `
-        <tr>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
-            <span style="display: inline-block; width: 12px; height: 12px; background-color: ${h.color}; border-radius: 50%; margin-right: 8px;"></span>
-            ${h.title}
-          </td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; color: #666;">
-            ${dayName}, ${monthName} ${dayNum}
-          </td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
-            <span style="background-color: ${h.color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
-              ${categoryLabel}
-            </span>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    const emailHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f4;">
-  <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
-    <!-- Header -->
-    <div style="background-color: #06427F; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-      ${logoDataUrl && logoDataUrl.length > 100 && logoDataUrl.startsWith('data:image') ? 
-        `<img src="${logoDataUrl}" alt="Company Logo" style="max-height: 60px; margin-bottom: 12px;">` : 
-        '<h1 style="color: white; margin: 0; font-size: 24px;">MortgagePros</h1>'
+    // Helper to generate calendar grid
+    const generateCalendarGrid = () => {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDayOfWeek = firstDay.getDay();
+      
+      // Create holiday lookup by day
+      const holidaysByDay: Record<number, typeof holidays> = {};
+      holidays.forEach(h => {
+        const day = new Date(h.date + 'T00:00:00').getDate();
+        if (!holidaysByDay[day]) holidaysByDay[day] = [];
+        holidaysByDay[day].push(h);
+      });
+      
+      // Generate grid rows
+      const weeks: string[] = [];
+      let currentDay = 1;
+      let dayOfWeek = startingDayOfWeek;
+      
+      while (currentDay <= daysInMonth) {
+        const cells: string[] = [];
+        for (let i = 0; i < 7; i++) {
+          if ((weeks.length === 0 && i < startingDayOfWeek) || currentDay > daysInMonth) {
+            cells.push('<td style="padding: 8px; border: 1px solid #e5e5e5; height: 80px; vertical-align: top; background-color: #f9fafb;"></td>');
+          } else {
+            const dayHolidays = holidaysByDay[currentDay] || [];
+            const holidayDots = dayHolidays.map(h => 
+              `<div style="font-size: 10px; padding: 2px 4px; margin: 2px 0; background-color: ${h.color}; color: white; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${h.title.length > 12 ? h.title.substring(0, 12) + '...' : h.title}</div>`
+            ).join('');
+            cells.push(`
+              <td style="padding: 8px; border: 1px solid #e5e5e5; height: 80px; vertical-align: top; width: 14.28%;">
+                <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${currentDay}</div>
+                ${holidayDots}
+              </td>
+            `);
+            currentDay++;
+          }
+        }
+        weeks.push(`<tr>${cells.join('')}</tr>`);
       }
-      <h2 style="color: white; margin: 12px 0 0 0; font-size: 18px; font-weight: normal;">
-        ${template.headerText || `${monthName} ${year} Holiday Calendar`}
-      </h2>
-    </div>
+      
+      return `
+        <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+          <thead>
+            <tr style="background-color: #06427F;">
+              ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => 
+                `<th style="padding: 10px; color: white; text-align: center; font-weight: 600; width: 14.28%;">${d}</th>`
+              ).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${weeks.join('')}
+          </tbody>
+        </table>
+        <!-- Legend -->
+        <div style="margin-top: 16px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+          <span style="display: inline-flex; align-items: center; font-size: 12px;">
+            <span style="width: 12px; height: 12px; background-color: #06427F; border-radius: 50%; margin-right: 6px;"></span>
+            ${categoryLabels.federal}
+          </span>
+          <span style="display: inline-flex; align-items: center; font-size: 12px;">
+            <span style="width: 12px; height: 12px; background-color: #7B7E77; border-radius: 50%; margin-right: 6px;"></span>
+            ${categoryLabels.fun}
+          </span>
+          <span style="display: inline-flex; align-items: center; font-size: 12px;">
+            <span style="width: 12px; height: 12px; background-color: #059669; border-radius: 50%; margin-right: 6px;"></span>
+            ${categoryLabels.company}
+          </span>
+        </div>
+      `;
+    };
 
-    <!-- Content -->
-    <div style="background-color: white; padding: 24px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-      ${holidays.length > 0 ? `
+    // Generate list view
+    const generateListView = () => {
+      if (holidays.length === 0) {
+        return `
+          <p style="text-align: center; color: #666; padding: 40px 0;">
+            No holidays scheduled for ${monthName} ${year}
+          </p>
+        `;
+      }
+      
+      const holidayRows = holidays.map(h => {
+        const date = new Date(h.date + 'T00:00:00');
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+        const dayNum = date.getDate();
+        const categoryLabel = categoryLabels[h.category as keyof typeof categoryLabels] || h.category;
+        return `
+          <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
+              <span style="display: inline-block; width: 12px; height: 12px; background-color: ${h.color}; border-radius: 50%; margin-right: 8px;"></span>
+              ${h.title}
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; color: #666;">
+              ${dayName}, ${monthName} ${dayNum}
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
+              <span style="background-color: ${h.color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                ${categoryLabel}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      return `
         <table style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #f9fafb;">
@@ -174,11 +256,35 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
             ${holidayRows}
           </tbody>
         </table>
-      ` : `
-        <p style="text-align: center; color: #666; padding: 40px 0;">
-          No holidays scheduled for ${monthName} ${year}
-        </p>
-      `}
+      `;
+    };
+
+    // Choose layout based on template setting
+    const contentHtml = template.layout === 'calendar' ? generateCalendarGrid() : generateListView();
+
+    const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f4;">
+  <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <!-- Header -->
+    <div style="background-color: #06427F; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+      ${logoAttachment ? 
+        `<img src="cid:companylogo" alt="Company Logo" style="max-height: 60px; margin-bottom: 12px;">` : 
+        '<h1 style="color: white; margin: 0; font-size: 24px;">MortgagePros</h1>'
+      }
+      <h2 style="color: white; margin: 12px 0 0 0; font-size: 18px; font-weight: normal;">
+        ${template.headerText || `${monthName} ${year} Holiday Calendar`}
+      </h2>
+    </div>
+
+    <!-- Content -->
+    <div style="background-color: white; padding: 24px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      ${contentHtml}
 
       <!-- Footer -->
       ${template.footerText ? `
@@ -201,12 +307,24 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
     const fromName = settings.smtp_from_name || 'MortgagePros Calendar';
     const fromEmail = settings.smtp_from || settings.smtp_user;
 
-    await transporter.sendMail({
+    const mailOptions: nodemailer.SendMailOptions = {
       from: `"${fromName}" <${fromEmail}>`,
       to: recipients.join(', '),
       subject: template.subject || `${monthName} ${year} Holiday Calendar`,
       html: emailHtml
-    });
+    };
+    
+    // Add logo as CID attachment if available
+    if (logoAttachment) {
+      mailOptions.attachments = [{
+        filename: logoAttachment.filename,
+        content: logoAttachment.content,
+        cid: logoAttachment.cid,
+        contentType: logoAttachment.contentType
+      }];
+    }
+
+    await transporter.sendMail(mailOptions);
 
     res.json({ 
       message: `Email sent successfully to ${recipients.length} recipient(s)`,
