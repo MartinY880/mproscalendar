@@ -57,11 +57,15 @@ export default function AdminExport() {
   
   // Logo URL
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  
+  // Category labels
+  const [categoryLabels, setCategoryLabels] = useState({ federal: 'Federal', fun: 'Fun', company: 'Company' });
 
   // Load holidays when month/year changes
   useEffect(() => {
     loadHolidays();
     loadLogo();
+    loadCategoryLabels();
   }, [selectedMonth, selectedYear]);
 
   // Update template placeholders
@@ -103,6 +107,15 @@ export default function AdminExport() {
       setLogoUrl(logoUrl);
     } catch {
       // Ignore logo loading errors
+    }
+  };
+
+  const loadCategoryLabels = async () => {
+    try {
+      const labels = await settingsApi.getCategoryLabels();
+      setCategoryLabels(labels);
+    } catch {
+      // Use defaults if fetch fails
     }
   };
 
@@ -302,29 +315,29 @@ export default function AdminExport() {
                     return (
                       <div
                         key={index}
-                        className={`min-h-[60px] p-1 border-b border-r border-gray-100 ${
+                        className={`min-h-[80px] p-1.5 border-b border-r border-gray-100 ${
                           day ? 'bg-white' : 'bg-gray-50'
                         } ${isToday ? 'bg-primary/5' : ''}`}
                       >
                         {day && (
                           <>
-                            <span className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-gray-600'}`}>
+                            <span className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-gray-600'}`}>
                               {day}
                             </span>
-                            <div className="mt-1 space-y-0.5">
-                              {dayHolidays.slice(0, 2).map(h => (
+                            <div className="mt-1 space-y-1">
+                              {dayHolidays.slice(0, 3).map(h => (
                                 <div
                                   key={h.id}
-                                  className="text-[8px] px-1 py-0.5 rounded truncate text-white"
+                                  className="text-[10px] leading-tight px-1 py-0.5 rounded truncate text-white"
                                   style={{ backgroundColor: h.color || CATEGORY_COLORS[h.category] }}
                                   title={h.title}
                                 >
                                   {h.title}
                                 </div>
                               ))}
-                              {dayHolidays.length > 2 && (
-                                <div className="text-[8px] text-gray-500">
-                                  +{dayHolidays.length - 2} more
+                              {dayHolidays.length > 3 && (
+                                <div className="text-[10px] text-gray-500">
+                                  +{dayHolidays.length - 3} more
                                 </div>
                               )}
                             </div>
@@ -340,15 +353,15 @@ export default function AdminExport() {
               <div className="flex flex-wrap gap-3 mt-4 justify-center">
                 <div className="flex items-center text-xs">
                   <span className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: CATEGORY_COLORS.federal }}></span>
-                  Federal
+                  {categoryLabels.federal}
                 </div>
                 <div className="flex items-center text-xs">
                   <span className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: CATEGORY_COLORS.fun }}></span>
-                  Fun/National
+                  {categoryLabels.fun}
                 </div>
                 <div className="flex items-center text-xs">
                   <span className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: CATEGORY_COLORS.company }}></span>
-                  Company
+                  {categoryLabels.company}
                 </div>
               </div>
             </div>

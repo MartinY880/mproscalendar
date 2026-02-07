@@ -132,6 +132,13 @@ export interface SMTPSettings {
   smtp_from_name: string;
 }
 
+// Category labels customization
+export interface CategoryLabels {
+  federal: string;
+  fun: string;
+  company: string;
+}
+
 // Holiday API Configuration
 export interface HolidayApiConfig {
   id: string;

@@ -11,7 +11,7 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventClickArg } from '@fullcalendar/core';
 
-import { holidaysApi } from '../../services/api';
+import { holidaysApi, settingsApi } from '../../services/api';
 import type { Holiday, CalendarEvent, CategoryFilter } from '../../types';
 import HolidayDetailModal from './HolidayDetailModal';
 import CategoryFilterPanel from './CategoryFilterPanel';
@@ -30,14 +30,14 @@ export default function HolidayCalendar() {
   const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Category filters
+  // Category filters with custom labels
   const [filters, setFilters] = useState<CategoryFilter[]>([
     { value: 'federal', label: 'Federal Holidays', color: CATEGORY_COLORS.federal, checked: true },
     { value: 'fun', label: 'Fun/National Days', color: CATEGORY_COLORS.fun, checked: true },
     { value: 'company', label: 'Company Holidays', color: CATEGORY_COLORS.company, checked: true }
   ]);
 
-  // Fetch holidays
+  // Fetch holidays and category labels
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
@@ -51,7 +51,21 @@ export default function HolidayCalendar() {
       }
     };
 
+    const fetchCategoryLabels = async () => {
+      try {
+        const labels = await settingsApi.getCategoryLabels();
+        setFilters([
+          { value: 'federal', label: labels.federal, color: CATEGORY_COLORS.federal, checked: true },
+          { value: 'fun', label: labels.fun, color: CATEGORY_COLORS.fun, checked: true },
+          { value: 'company', label: labels.company, color: CATEGORY_COLORS.company, checked: true }
+        ]);
+      } catch {
+        // Use defaults if fetch fails
+      }
+    };
+
     fetchHolidays();
+    fetchCategoryLabels();
   }, []);
 
   // Convert holidays to calendar events

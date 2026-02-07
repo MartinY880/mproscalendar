@@ -56,6 +56,10 @@ export default function AdminSettings() {
   const [isDeletingFun, setIsDeletingFun] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   
+  // Category labels
+  const [categoryLabels, setCategoryLabels] = useState({ federal: 'Federal', fun: 'Fun', company: 'Company' });
+  const [isSavingLabels, setIsSavingLabels] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch settings
@@ -87,8 +91,18 @@ export default function AdminSettings() {
       }
     };
 
+    const fetchCategoryLabels = async () => {
+      try {
+        const labels = await settingsApi.getCategoryLabels();
+        setCategoryLabels(labels);
+      } catch (error) {
+        console.error('Failed to fetch category labels:', error);
+      }
+    };
+
     fetchSettings();
     fetchApiConfigs();
+    fetchCategoryLabels();
   }, []);
 
   // Handle file selection
@@ -190,6 +204,20 @@ export default function AdminSettings() {
       toast.error('Failed to save SMTP settings');
     } finally {
       setIsSavingSmtp(false);
+    }
+  };
+
+  // Handle save category labels
+  const handleSaveCategoryLabels = async () => {
+    setIsSavingLabels(true);
+    try {
+      await settingsApi.saveCategoryLabels(categoryLabels);
+      toast.success('Category labels saved');
+    } catch (error) {
+      console.error('Category labels save failed:', error);
+      toast.error('Failed to save category labels');
+    } finally {
+      setIsSavingLabels(false);
     }
   };
 
@@ -533,6 +561,39 @@ export default function AdminSettings() {
                 Send Test
               </Button>
             </div>
+          </div>
+        </Card>
+
+        {/* Category Labels */}
+        <Card>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Category Labels</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Customize the display names for holiday categories.
+          </p>
+
+          <div className="space-y-4 max-w-md">
+            <Input
+              label="Federal / Public Holidays"
+              value={categoryLabels.federal}
+              onChange={(e) => setCategoryLabels({...categoryLabels, federal: e.target.value})}
+              placeholder="Federal"
+            />
+            <Input
+              label="Fun / National Days"
+              value={categoryLabels.fun}
+              onChange={(e) => setCategoryLabels({...categoryLabels, fun: e.target.value})}
+              placeholder="Fun"
+            />
+            <Input
+              label="Company Events"
+              value={categoryLabels.company}
+              onChange={(e) => setCategoryLabels({...categoryLabels, company: e.target.value})}
+              placeholder="Company"
+            />
+
+            <Button onClick={handleSaveCategoryLabels} isLoading={isSavingLabels}>
+              Save Labels
+            </Button>
           </div>
         </Card>
 

@@ -171,6 +171,15 @@ export const settingsApi = {
         api.put(`/settings/${key}`, { value })
       )
     );
+  },
+
+  getCategoryLabels: async (): Promise<{ federal: string; fun: string; company: string }> => {
+    const response = await api.get<{ federal: string; fun: string; company: string }>('/settings/category-labels');
+    return response.data;
+  },
+
+  saveCategoryLabels: async (labels: { federal: string; fun: string; company: string }): Promise<void> => {
+    await api.put('/settings/category-labels', labels);
   }
 };
 

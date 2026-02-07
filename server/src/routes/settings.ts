@@ -193,6 +193,57 @@ router.delete('/logo', authMiddleware, async (_req: AuthRequest, res: Response):
 });
 
 /**
+ * GET /api/settings/category-labels
+ * Get custom category labels
+ */
+router.get('/category-labels', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'category_labels' }
+    });
+
+    const defaultLabels = { federal: 'Federal', fun: 'Fun', company: 'Company' };
+    
+    if (setting) {
+      const labels = JSON.parse(setting.value);
+      res.json({ ...defaultLabels, ...labels });
+    } else {
+      res.json(defaultLabels);
+    }
+  } catch (error) {
+    console.error('Get category labels error:', error);
+    res.status(500).json({ error: 'Failed to fetch category labels' });
+  }
+});
+
+/**
+ * PUT /api/settings/category-labels
+ * Update custom category labels
+ */
+router.put('/category-labels', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { federal, fun, company } = req.body;
+
+    const labels = {
+      federal: federal || 'Federal',
+      fun: fun || 'Fun',
+      company: company || 'Company'
+    };
+
+    await prisma.settings.upsert({
+      where: { key: 'category_labels' },
+      update: { value: JSON.stringify(labels) },
+      create: { key: 'category_labels', value: JSON.stringify(labels) }
+    });
+
+    res.json({ message: 'Category labels updated', labels });
+  } catch (error) {
+    console.error('Update category labels error:', error);
+    res.status(500).json({ error: 'Failed to update category labels' });
+  }
+});
+
+/**
  * PUT /api/settings/:key
  * Update a setting (admin only)
  */

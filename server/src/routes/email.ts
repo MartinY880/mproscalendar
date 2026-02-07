@@ -23,6 +23,23 @@ async function getLogoDataUrl(): Promise<string | null> {
   }
 }
 
+// Helper to get category labels
+async function getCategoryLabels(): Promise<{ federal: string; fun: string; company: string }> {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'category_labels' }
+    });
+    
+    const defaultLabels = { federal: 'Federal', fun: 'Fun', company: 'Company' };
+    if (setting) {
+      return { ...defaultLabels, ...JSON.parse(setting.value) };
+    }
+    return defaultLabels;
+  } catch {
+    return { federal: 'Federal', fun: 'Fun', company: 'Company' };
+  }
+}
+
 // Email template interface
 interface EmailTemplate {
   subject: string;
@@ -88,6 +105,9 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
 
     // Get logo as base64 data URL
     const logoDataUrl = template.includeCompanyLogo ? await getLogoDataUrl() : null;
+    
+    // Get category labels
+    const categoryLabels = await getCategoryLabels();
 
     // Build email HTML
     const monthNames = [
@@ -100,6 +120,7 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
       const date = new Date(h.date + 'T00:00:00');
       const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
       const dayNum = date.getDate();
+      const categoryLabel = categoryLabels[h.category as keyof typeof categoryLabels] || h.category;
       return `
         <tr>
           <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
@@ -110,8 +131,8 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
             ${dayName}, ${monthName} ${dayNum}
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">
-            <span style="background-color: ${h.color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; text-transform: capitalize;">
-              ${h.category}
+            <span style="background-color: ${h.color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+              ${categoryLabel}
             </span>
           </td>
         </tr>
@@ -129,7 +150,7 @@ router.post('/send', authMiddleware, async (req: AuthRequest, res: Response): Pr
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <!-- Header -->
     <div style="background-color: #06427F; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-      ${logoDataUrl ? 
+      ${logoDataUrl && logoDataUrl.startsWith('data:image') ? 
         `<img src="${logoDataUrl}" alt="Company Logo" style="max-height: 50px; margin-bottom: 12px;">` : 
         '<h1 style="color: white; margin: 0; font-size: 24px;">MortgagePros</h1>'
       }

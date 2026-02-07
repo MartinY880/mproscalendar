@@ -13,7 +13,7 @@ import Select from '../../components/ui/Select';
 import Toggle from '../../components/ui/Toggle';
 import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
-import { holidaysApi } from '../../services/api';
+import { holidaysApi, settingsApi } from '../../services/api';
 import type { Holiday, HolidayFormData } from '../../types';
 
 // Default form data
@@ -25,13 +25,6 @@ const defaultFormData: HolidayFormData = {
   visible: true,
   recurring: false
 };
-
-// Category options with static colors
-const CATEGORIES = [
-  { value: 'federal', label: 'Federal Holiday', color: '#06427F' },
-  { value: 'fun', label: 'Fun/National Day', color: '#7B7E77' },
-  { value: 'company', label: 'Company Holiday', color: '#059669' }
-];
 
 // Category colors lookup
 const CATEGORY_COLORS: Record<string, string> = {
@@ -54,10 +47,14 @@ export default function AdminHolidays() {
   const [formData, setFormData] = useState<HolidayFormData>(defaultFormData);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Category labels (customizable)
+  const [categoryLabels, setCategoryLabels] = useState({ federal: 'Federal', fun: 'Fun', company: 'Company' });
 
   // Fetch holidays
   useEffect(() => {
     fetchHolidays();
+    fetchCategoryLabels();
   }, []);
 
   const fetchHolidays = async () => {
@@ -70,6 +67,15 @@ export default function AdminHolidays() {
       toast.error('Failed to load holidays');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchCategoryLabels = async () => {
+    try {
+      const labels = await settingsApi.getCategoryLabels();
+      setCategoryLabels(labels);
+    } catch {
+      // Use defaults if fetch fails
     }
   };
 
@@ -216,9 +222,9 @@ export default function AdminHolidays() {
             className="sm:w-48 flex-shrink-0"
           >
             <option value="all">All Categories</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
-            ))}
+            <option value="federal">{categoryLabels.federal}</option>
+            <option value="fun">{categoryLabels.fun}</option>
+            <option value="company">{categoryLabels.company}</option>
           </Select>
         </div>
       </Card>
@@ -278,7 +284,7 @@ export default function AdminHolidays() {
                     </td>
                     <td className="px-6 py-4">
                       <Badge color={getCategoryColor(holiday.category)}>
-                        {holiday.category}
+                        {categoryLabels[holiday.category as keyof typeof categoryLabels] || holiday.category}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-gray-600 capitalize">
@@ -352,9 +358,9 @@ export default function AdminHolidays() {
               category: e.target.value as 'federal' | 'fun' | 'company'
             }))}
           >
-            {CATEGORIES.map(cat => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
-            ))}
+            <option value="federal">{categoryLabels.federal}</option>
+            <option value="fun">{categoryLabels.fun}</option>
+            <option value="company">{categoryLabels.company}</option>
           </Select>
 
           <div className="flex items-center gap-6">
