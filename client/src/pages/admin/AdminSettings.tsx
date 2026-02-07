@@ -49,6 +49,7 @@ export default function AdminSettings() {
     country: 'US',
     color: '#3B82F6',
     category: 'federal',
+    typeFilter: '',
     enabled: true
   });
   const [isDeletingFederal, setIsDeletingFederal] = useState(false);
@@ -632,6 +633,15 @@ export default function AdminSettings() {
                   <option value="fun">Fun / National</option>
                   <option value="company">Company</option>
                 </Select>
+                <Input
+                  label="Type Filter (Calendarific)"
+                  value={editingApi ? (editingApi.typeFilter || '') : (newApi.typeFilter || '')}
+                  onChange={(e) => editingApi 
+                    ? setEditingApi({...editingApi, typeFilter: e.target.value})
+                    : setNewApi({...newApi, typeFilter: e.target.value})
+                  }
+                  placeholder="e.g., national, observance, religious"
+                />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
                   <input

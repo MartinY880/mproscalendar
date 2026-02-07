@@ -142,5 +142,6 @@ export interface HolidayApiConfig {
   country: string;
   color: string;
   category: 'federal' | 'fun' | 'company';
+  typeFilter?: string;
   enabled: boolean;
 }

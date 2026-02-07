@@ -20,6 +20,8 @@ export interface HolidayApiConfig {
   country: string;
   color: string;
   category: 'federal' | 'fun' | 'company';
+  // Type filter for APIs that support it (e.g., Calendarific: national, observance, religious, local)
+  typeFilter?: string;
   // For custom APIs, define field mappings
   dateField?: string;
   titleField?: string;
@@ -47,7 +49,8 @@ const DEFAULT_CONFIGS: HolidayApiConfig[] = [
     apiKey: '',
     country: 'US',
     color: '#10B981',
-    category: 'fun'
+    category: 'fun',
+    typeFilter: 'observance'
   }
 ];
 

@@ -18,6 +18,7 @@ interface HolidayApiConfig {
   country: string;
   color: string;
   category: 'federal' | 'fun' | 'company';
+  typeFilter?: string;
   dateField?: string;
   titleField?: string;
   responsePathToHolidays?: string;
@@ -146,37 +147,24 @@ async function syncCalendarificApi(config: HolidayApiConfig, year: number): Prom
   try {
     console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
 
-    const response = await axios.get(`${config.endpoint}/holidays`, {
-      params: {
-        api_key: config.apiKey,
-        country: config.country,
-        year: year,
-        type: 'observance,national'
-      }
-    });
+    // Build params - use typeFilter from config if provided
+    const params: Record<string, string | number> = {
+      api_key: config.apiKey,
+      country: config.country,
+      year: year
+    };
+    
+    // Add type filter if specified (e.g., 'national', 'observance', 'religious', 'local')
+    if (config.typeFilter) {
+      params.type = config.typeFilter;
+    }
+
+    const response = await axios.get(`${config.endpoint}/holidays`, { params });
 
     const holidays = response.data?.response?.holidays || [];
     let count = 0;
 
-    // Fun holiday keywords filter
-    const funKeywords = [
-      'day', 'national', 'world', 'international',
-      'pizza', 'donut', 'ice cream', 'chocolate', 'coffee',
-      'dog', 'cat', 'pet', 'friendship', 'love'
-    ];
-
     for (const holiday of holidays) {
-      // Skip federal/public holidays if category is fun
-      if (config.category === 'fun') {
-        if (holiday.type?.includes('Federal') || holiday.type?.includes('Public')) {
-          continue;
-        }
-        const isFunHoliday = funKeywords.some(keyword =>
-          holiday.name.toLowerCase().includes(keyword.toLowerCase())
-        );
-        if (!isFunHoliday) continue;
-      }
-
       const dateStr = holiday.date?.iso?.split('T')[0];
       if (!dateStr) continue;
 
@@ -238,39 +226,23 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
     return 0;
   }
 
-  try {
-    console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
-
-    const response = await axios.get(config.endpoint, {
-      params: {
-        api_key: config.apiKey,
-        country: config.country,
-        year: year
-      }
-    });
-
-    console.log(`[SYNC] ${config.name} response status:`, response.status);
-    
-    const holidays = response.data || [];
-    
-    if (!Array.isArray(holidays)) {
-      console.error(`[SYNC] ${config.name}: Expected array, got:`, typeof holidays);
-      throw new Error('Invalid response format from API');
-    }
-    
+  // Helper to process holidays from response
+  const processHolidays = async (holidays: Array<{
+    name: string;
+    date?: string;
+    date_year?: string;
+    date_month?: string;
+    date_day?: string;
+  }>): Promise<number> => {
     let count = 0;
-
     for (const holiday of holidays) {
-      // Abstract API uses date format like "1/1/2020" or provides date_year, date_month, date_day
       let dateStr: string;
       
       if (holiday.date_year && holiday.date_month && holiday.date_day) {
-        // Build YYYY-MM-DD from components
         const month = String(holiday.date_month).padStart(2, '0');
         const day = String(holiday.date_day).padStart(2, '0');
         dateStr = `${holiday.date_year}-${month}-${day}`;
       } else if (holiday.date) {
-        // Parse M/D/YYYY format
         const parts = holiday.date.split('/');
         if (parts.length === 3) {
           const month = parts[0].padStart(2, '0');
@@ -278,7 +250,6 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
           const yr = parts[2];
           dateStr = `${yr}-${month}-${day}`;
         } else {
-          // Maybe it's already YYYY-MM-DD
           dateStr = holiday.date;
         }
       } else {
@@ -286,11 +257,7 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
       }
 
       const existing = await prisma.holiday.findFirst({
-        where: {
-          title: holiday.name,
-          date: dateStr,
-          source: config.id
-        }
+        where: { title: holiday.name, date: dateStr, source: config.id }
       });
 
       if (!existing) {
@@ -308,19 +275,93 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
         count++;
       }
     }
+    return count;
+  };
+
+  try {
+    console.log(`[SYNC] Fetching from ${config.name} for ${year}...`);
+
+    // First try year-only query (works for paid plans)
+    const response = await axios.get(config.endpoint, {
+      params: {
+        api_key: config.apiKey,
+        country: config.country,
+        year: year
+      }
+    });
+
+    console.log(`[SYNC] ${config.name} response status:`, response.status);
+    const holidays = response.data || [];
+    
+    if (!Array.isArray(holidays)) {
+      throw new Error('Invalid response format from API');
+    }
+    
+    const count = await processHolidays(holidays);
 
     await prisma.syncLog.create({
-      data: {
-        source: config.id,
-        status: 'success',
-        message: `Synced ${count} holidays for ${year}`
-      }
+      data: { source: config.id, status: 'success', message: `Synced ${count} holidays for ${year}` }
     });
 
     console.log(`[SYNC] ${config.name}: Added ${count} holidays for ${year}`);
     return count;
   } catch (error: unknown) {
-    const axiosError = error as { response?: { status?: number; data?: unknown } };
+    const axiosError = error as { response?: { status?: number; data?: { error?: { code?: string } } } };
+    
+    // Check if this is a free plan limitation
+    if (axiosError.response?.data?.error?.code === 'payment_required') {
+      console.log(`[SYNC] ${config.name}: Free plan detected, querying each day of ${year}...`);
+      
+      try {
+        let totalCount = 0;
+        const daysInYear = ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) ? 366 : 365;
+        
+        // Query each day of the year
+        for (let dayOfYear = 1; dayOfYear <= daysInYear; dayOfYear++) {
+          const date = new Date(year, 0, dayOfYear);
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          
+          try {
+            const dayResponse = await axios.get(config.endpoint, {
+              params: {
+                api_key: config.apiKey,
+                country: config.country,
+                year: year,
+                month: month,
+                day: day
+              }
+            });
+
+            const dayHolidays = dayResponse.data || [];
+            if (Array.isArray(dayHolidays) && dayHolidays.length > 0) {
+              const count = await processHolidays(dayHolidays);
+              totalCount += count;
+              console.log(`[SYNC] ${config.name}: Found ${dayHolidays.length} holidays on ${year}-${month}-${day}`);
+            }
+            
+            // Rate limit: 1 request per second for free plan
+            await new Promise(resolve => setTimeout(resolve, 1100));
+          } catch (dayError) {
+            // Skip failed days silently
+          }
+        }
+
+        await prisma.syncLog.create({
+          data: { source: config.id, status: 'success', message: `Synced ${totalCount} holidays for ${year} (free plan - day by day)` }
+        });
+
+        console.log(`[SYNC] ${config.name}: Added ${totalCount} holidays for ${year} (free plan)`);
+        return totalCount;
+      } catch (freeError) {
+        console.error(`[SYNC] ${config.name} free plan sync error:`, freeError);
+        await prisma.syncLog.create({
+          data: { source: config.id, status: 'error', message: 'Free plan sync failed' }
+        });
+        return 0;
+      }
+    }
+
     console.error(`[SYNC] ${config.name} error:`, error);
     if (axiosError.response) {
       console.error(`[SYNC] Response status:`, axiosError.response.status);
@@ -328,11 +369,7 @@ async function syncAbstractApi(config: HolidayApiConfig, year: number): Promise<
     }
     
     await prisma.syncLog.create({
-      data: {
-        source: config.id,
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }
+      data: { source: config.id, status: 'error', message: error instanceof Error ? error.message : 'Unknown error' }
     });
 
     return 0;
